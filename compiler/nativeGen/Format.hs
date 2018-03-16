@@ -10,6 +10,8 @@
 --
 module Format (
     Format(..),
+    VecFormat(..),
+    ScalarFormat(..),
     intFormat,
     floatFormat,
     isFloatFormat,
@@ -50,6 +52,11 @@ data Format
         | FF80
         deriving (Show, Eq)
 
+data VecFormat = VecFormat { vecLength :: Length
+                           , vecFormat :: ScalarFormat
+                           , vecWidth  :: Width}
+
+data ScalarFormat = FmtInt | FmtFloat
 
 -- | Get the integer format of this width.
 intFormat :: Width -> Format

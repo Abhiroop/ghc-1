@@ -94,6 +94,11 @@ sse4_2Enabled = do
   dflags <- getDynFlags
   return (isSse4_2Enabled dflags)
 
+avxEnabled :: NatM Bool
+avxEnabled = do
+  dflags <- getDynFlags
+  return (isAvxEnabled dflags)
+
 if_sse2 :: NatM a -> NatM a -> NatM a
 if_sse2 sse2 x87 = do
   b <- sse2Enabled
@@ -267,7 +272,10 @@ data ChildCode64
 data Register
         = Fixed Format Reg InstrBlock
         | Any   Format (Reg -> InstrBlock)
-
+        | AnyV  VecFormat (Reg -> InstrBlock)
+        -- The AnyV is experimental, the `anyReg` function (which `getAnyReg` calls)
+        -- removes the removes the data constructor and just returns the
+        -- (Reg -> InstrBlock) part
 
 swizzleRegisterRep :: Register -> Format -> Register
 swizzleRegisterRep (Fixed _ reg code) format = Fixed format reg code
@@ -505,9 +513,10 @@ getRegister' dflags is32Bit (CmmReg reg)
                return (Fixed (archWordFormat is32Bit) reg' nilOL)
         _ ->
             do use_sse2 <- sse2Enabled
+               use_avx <- avxEnabled
                let
                  fmt = cmmTypeFormat (cmmRegType dflags reg)
-                 format | not use_sse2 && isFloatFormat fmt = FF80
+                 format | not use_avx && not use_sse2 && isFloatFormat fmt = FF80
                         | otherwise                         = fmt
                --
                let platform = targetPlatform dflags
@@ -745,6 +754,7 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
 
 getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
   sse2 <- sse2Enabled
+  avx  <- avxEnabled
   case mop of
       MO_F_Eq _ -> condFltReg is32Bit EQQ x y
       MO_F_Ne _ -> condFltReg is32Bit NE  x y
@@ -790,6 +800,10 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_Or  rep -> triv_op rep OR
       MO_Xor rep -> triv_op rep XOR
 
+      -- Experimental Vector Operations
+      MO_VF_Add l w  | avx       -> vector_float_add l w x y
+                     | otherwise -> needLlvm
+      -----------------
         {- Shift ops on x86s have constraints on their source, it
            either has to be Imm, CL or 1
             => trivialCode is not restrictive enough (sigh.)
@@ -808,7 +822,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VS_Neg {}     -> needLlvm
       MO_VF_Insert {}  -> needLlvm
       MO_VF_Extract {} -> needLlvm
-      MO_VF_Add {}     -> needLlvm
+
       MO_VF_Sub {}     -> needLlvm
       MO_VF_Mul {}     -> needLlvm
       MO_VF_Quot {}    -> needLlvm
@@ -893,6 +907,14 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     -- TODO: There are other interesting patterns we want to replace
     --     with a LEA, e.g. `(x + offset) + (y << shift)`.
 
+    -------------------
+    -- Experimental---
+    vector_float_add :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
+    vector_float_add 8 W32 x y =
+      let fmt = VecFormat 8 FmtFloat W32
+       in genVectorTrivialCode fmt (VADDPS fmt) x y
+    vector_float_add _ _ _ _ = undefined
+    -- Add Other vector sizes and cases.
     --------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
     sub_code rep x (CmmLit (CmmInt y _))
@@ -1025,6 +1047,7 @@ getAnyReg expr = do
   anyReg r
 
 anyReg :: Register -> NatM (Reg -> InstrBlock)
+anyReg (AnyV _ code)         = return code
 anyReg (Any _ code)          = return code
 anyReg (Fixed rep reg fcode) = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
 
@@ -3044,6 +3067,23 @@ trivialCode' is32Bit width _ (Just revinstr) (CmmLit lit_a) b
 
 trivialCode' _ width instr _ a b
   = genTrivialCode (intFormat width) instr a b
+
+-- An experimental Vector trivial code genrator. This does not handle the case of the clobbered register. More comments below.
+genVectorTrivialCode :: VecFormat -> (Operand -> Operand -> Instr)
+               -> CmmExpr -> CmmExpr -> NatM Register
+genVectorTrivialCode rep instr a b = do
+  (b_op, b_code) <- getNonClobberedOperand b
+  a_code <- getAnyReg a
+  let
+     -- Currently ignoring the case of (dst := dst `op` src). Assuming that
+     --  a temporary register is not needed. As the register size of an
+     -- AVX2 instruction is 256 bits, the logic for a temporary register
+     -- might be different
+     code dst =
+                b_code `appOL`
+                a_code dst `snocOL`
+                instr b_op (OpReg dst)
+  return (AnyV rep code)
 
 -- This is re-used for floating pt instructions too.
 genTrivialCode :: Format -> (Operand -> Operand -> Instr)
