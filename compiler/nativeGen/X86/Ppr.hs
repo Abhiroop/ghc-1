@@ -236,6 +236,8 @@ pprAlign bytes
 instance Outputable Instr where
     ppr instr = pprInstr instr
 
+pprVecReg :: VecFormat -> Reg -> SDoc
+pprVecReg = panic "Currently vector register printing not supported" --TODO: Implement the entire Vector Register printing
 
 pprReg :: Format -> Reg -> SDoc
 pprReg f r
@@ -373,6 +375,30 @@ pprFormat_x87 x
                 FF64  -> sLit "l"
                 FF80  -> sLit "t"
                 _     -> panic "X86.Ppr.pprFormat_x87"
+
+pprVecFormat :: VecFormat -> SDoc
+pprVecFormat (VecFormat l sf w)
+  = text "VectorFormat" <> pprLength l <> pprScalarFormat sf <> pprWidth w
+
+pprLength :: Length -> SDoc
+pprLength 8 = ptext $ sLit "8"
+pprLength _ = panic "This length of the vector is not supported currently"
+
+pprScalarFormat :: ScalarFormat -> SDoc
+pprScalarFormat FmtFloat = text "float"
+pprScalarFormat FmtInt   = text "int"
+
+pprWidth :: Width -> SDoc
+pprWidth w
+  = ptext $ case w of
+              W8   -> sLit "8"
+              W16  -> sLit "16"
+              W32  -> sLit "32"
+              W64  -> sLit "64"
+              W80  -> sLit "80"
+              W128 -> sLit "128"
+              W256 -> sLit "256"
+              W512 -> sLit "512"
 
 pprCond :: Cond -> SDoc
 pprCond c
@@ -746,6 +772,11 @@ pprInstr (CALL (Right reg) _)   = sdocWithPlatform $ \platform ->
 pprInstr (IDIV fmt op)   = pprFormatOp (sLit "idiv") fmt op
 pprInstr (DIV fmt op)    = pprFormatOp (sLit "div")  fmt op
 pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
+
+-- Vector Instructions
+
+pprInstr (VADDPS format op1 op2) = pprVecFormatOpOp (sLit "vaddps") format op1 op2
+
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1133,6 +1164,9 @@ pprOperand f (OpReg r)   = pprReg f r
 pprOperand _ (OpImm i)   = pprDollImm i
 pprOperand _ (OpAddr ea) = pprAddr ea
 
+pprVecOperand :: VecFormat -> Operand -> SDoc
+pprVecOperand f (OpReg r) = pprVecReg f r
+pprVecOperand _ _         = panic "Currently supported vector operations have operands which are registers only"
 
 pprMnemonic_  :: LitString -> SDoc
 pprMnemonic_ name =
@@ -1142,6 +1176,10 @@ pprMnemonic_ name =
 pprMnemonic  :: LitString -> Format -> SDoc
 pprMnemonic name format =
    char '\t' <> ptext name <> pprFormat format <> space
+
+pprVecMnemonic :: LitString -> VecFormat -> SDoc
+pprVecMnemonic name format =
+   char '\t' <> ptext name <> pprVecFormat format <> space
 
 
 pprFormatImmOp :: LitString -> Format -> Imm -> Operand -> SDoc
@@ -1179,6 +1217,14 @@ pprFormatOpOp name format op1 op2
         pprOperand format op2
     ]
 
+pprVecFormatOpOp :: LitString -> VecFormat -> Operand -> Operand -> SDoc
+pprVecFormatOpOp name format op1 op2
+  = hcat [
+        pprVecMnemonic name format,
+        pprVecOperand format op1,
+        comma,
+        pprVecOperand format op2
+    ]
 
 pprOpOp :: LitString -> Format -> Operand -> Operand -> SDoc
 pprOpOp name format op1 op2
