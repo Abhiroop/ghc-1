@@ -16,6 +16,7 @@ module Format (
     floatFormat,
     isFloatFormat,
     cmmTypeFormat,
+    cmmVecTypeFormat,
     formatToWidth,
     formatInBytes
 )
@@ -97,6 +98,19 @@ cmmTypeFormat ty
         | isFloatType ty        = floatFormat (typeWidth ty)
         | otherwise             = intFormat (typeWidth ty)
 
+-- | Convert a Cmm type to a VecFormat
+cmmVecTypeFormat :: CmmType -> VecFormat
+cmmVecTypeFormat ty
+  | isVecType ty = let w = typeWidth ty
+                       l = Cmm.vecLength ty
+                    in if isFloatType (vecElemType ty)
+                       then VecFormat l FmtFloat w
+                       else VecFormat l FmtInt w
+  | otherwise    = defaultVecFormat
+
+-- TODO: Not sure what should be the otherwise case so adding a default
+defaultVecFormat :: VecFormat
+defaultVecFormat = VecFormat 8 FmtFloat W256
 
 -- | Get the Width of a Format.
 formatToWidth :: Format -> Width

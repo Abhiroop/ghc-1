@@ -200,9 +200,11 @@ stmtToInstrs stmt = do
     CmmAssign reg src
       | isFloatType ty         -> assignReg_FltCode format reg src
       | is32Bit && isWord64 ty -> assignReg_I64Code      reg src
+      | isVecType ty           -> assignReg_VecCode vecformat reg src
       | otherwise              -> assignReg_IntCode format reg src
         where ty = cmmRegType dflags reg
               format = cmmTypeFormat ty
+              vecformat = cmmVecTypeFormat ty
 
     CmmStore addr src
       | isFloatType ty         -> assignMem_FltCode format addr src
@@ -640,6 +642,14 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
       return $ Any II64 (\dst -> unitOL $
         LEA II64 (OpAddr (ripRel (litToImm displacement))) (OpReg dst))
 
+-- MO_VF_Insert_4_W32(   _c1JS::Fx4V128,           1.5 :: W32, 0 :: W32)
+-- CmmMachOp   len wid  x@CmmReg (CmmLocal src)       y          _
+getRegister' _ _ e@(CmmMachOp mop [x,y,_]) = do --ternary MachOps for broadcasts
+  avx <- avxEnabled
+  case mop of
+    MO_VF_Insert len wid -> undefined
+    _ -> needLlvm
+
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
     sse2 <- sse2Enabled
     case mop of
@@ -913,7 +923,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     vector_float_add 8 W32 x y =
       let fmt = VecFormat 8 FmtFloat W32
        in genVectorTrivialCode fmt (VADDPS fmt) x y
-    vector_float_add _ _ _ _ = undefined
+    vector_float_add _ _ _ _ = undefined -- TODO: Remove this
     -- Add Other vector sizes and cases.
     --------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
@@ -1544,7 +1554,7 @@ assignReg_IntCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 assignMem_FltCode :: Format -> CmmExpr -> CmmExpr -> NatM InstrBlock
 assignReg_FltCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 
-
+assignReg_VecCode :: VecFormat -> CmmReg -> CmmExpr -> NatM InstrBlock
 -- integer assignment to memory
 
 -- specific case of adding/subtracting an integer to a particular address.
@@ -1622,6 +1632,8 @@ assignReg_FltCode _ reg src = do
   dflags <- getDynFlags
   let platform = targetPlatform dflags
   return (src_code (getRegisterReg platform use_sse2 reg))
+
+assignReg_VecCode format reg src = undefined
 
 
 genJump :: CmmExpr{-the branch target-} -> [Reg] -> NatM InstrBlock

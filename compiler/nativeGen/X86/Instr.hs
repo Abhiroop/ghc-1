@@ -217,9 +217,14 @@ data Instr
         | DIV         Format Operand         -- eax := eax:edx/op, edx := eax:edx%op
         | IDIV        Format Operand         -- ditto, but signed
 
-        -- Vector Arithmetic
+        -- Vector Instructions
+        -- Broadcast
+        | VBROADCASTSS VecFormat Reg Operand
+
+        -- Arithmetic
         | VADDPS      VecFormat Operand Operand
 
+        --
         -- Int Arithmetic, where the effects on the condition register
         -- are important. Used in specialized sequences such as MO_Add2.
         -- Do not rewrite these instructions to "equivalent" ones that
