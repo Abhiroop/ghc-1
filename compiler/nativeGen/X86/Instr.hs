@@ -222,6 +222,7 @@ data Instr
         | VBROADCASTSS VecFormat Reg Operand
 
         -- Arithmetic
+        -- TODO: please change the Operand to Reg
         | VADDPS      VecFormat Operand Operand
 
         --

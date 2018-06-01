@@ -301,6 +301,14 @@ getRegisterReg platform _ (CmmGlobal mid)
         -- ones which map to a real machine register on this
         -- platform.  Hence ...
 
+-- TODO: The otherwise case needs to be taken care of;
+-- Created a new function instead of reusing getRegisterReg
+-- only to pass VecFormat which might be later useful for
+-- the register allocator
+getVecRegisterReg :: Platform -> Bool -> VecFormat -> CmmReg -> Reg
+getVecRegisterReg _ _ format (CmmLocal (LocalReg u pk))
+  | isVecType pk = RegVirtual (mkVirtualVecReg u format)
+  | otherwise    = RegVirtual (mkVirtualReg u FF80)
 
 -- | Memory addressing modes passed up the tree.
 data Amode
@@ -644,10 +652,14 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
 
 -- MO_VF_Insert_4_W32(   _c1JS::Fx4V128,           1.5 :: W32, 0 :: W32)
 -- CmmMachOp   len wid  x@CmmReg (CmmLocal src)       y          _
-getRegister' _ _ e@(CmmMachOp mop [x,y,_]) = do --ternary MachOps for broadcasts
+-- return type :: AnyV  VecFormat (Reg -> InstrBlock)
+getRegister' _ _ e@(CmmMachOp mop [x,(CmmLit l),_]) = do --ternary MachOps for broadcasts
   avx <- avxEnabled
   case mop of
-    MO_VF_Insert len wid -> undefined
+    MO_VF_Insert len wid | avx -> let f = VecFormat len FmtFloat wid
+                                   in return $
+                                      AnyV f (\r -> unitOL (VBROADCASTSS f r (OpImm (litToImm l))))
+                         | otherwise -> needLlvm
     _ -> needLlvm
 
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
@@ -1633,8 +1645,13 @@ assignReg_FltCode _ reg src = do
   let platform = targetPlatform dflags
   return (src_code (getRegisterReg platform use_sse2 reg))
 
-assignReg_VecCode format reg src = undefined
-
+--assignReg_VecCode :: VecFormat -> CmmReg -> CmmExpr -> NatM InstrBlock
+assignReg_VecCode format reg src = do
+  use_avx <- avxEnabled
+  src_code <- getAnyReg src -- NatM (Reg -> InstrBlock)
+  dflags <- getDynFlags
+  let platform = targetPlatform dflags
+  return (src_code (getVecRegisterReg platform use_avx format reg))
 
 genJump :: CmmExpr{-the branch target-} -> [Reg] -> NatM InstrBlock
 

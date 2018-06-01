@@ -1,6 +1,7 @@
 {-# LANGUAGE CPP #-}
 module X86.RegInfo (
         mkVirtualReg,
+        mkVirtualVecReg,
         regDotColor
 )
 
@@ -29,6 +30,11 @@ mkVirtualReg u format
         FF64    -> VirtualRegSSE u
         FF80    -> VirtualRegD   u
         _other  -> VirtualRegI   u
+
+-- TODO: Currently just assigning an SSE Virtual register for vectors
+-- Later we might have to use VecFormat
+mkVirtualVecReg :: Unique -> VecFormat -> VirtualReg
+mkVirtualVecReg u _ = VirtualRegSSE u
 
 regDotColor :: Platform -> RealReg -> SDoc
 regDotColor platform reg
