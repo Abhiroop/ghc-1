@@ -221,6 +221,9 @@ data Instr
         -- Broadcast
         | VBROADCASTSS VecFormat Reg Operand
 
+        | VMOVUPS      VecFormat Reg Reg
+
+        | VPXOR        VecFormat Reg Reg Reg
         -- Arithmetic
         -- TODO: please change the Operand to Reg
         | VADDPS      VecFormat Operand Operand
@@ -487,6 +490,11 @@ x86_regUsageOfInstr platform instr
     CMPXCHG _ src dst   -> usageRMM src dst (OpReg eax)
     MFENCE -> noUsage
 
+    -- vector instructions
+    VBROADCASTSS _ dst src   -> mkRU (use_R src []) [dst]
+    VMOVUPS      _ dst src   -> mkRU [src] [dst]
+    VPXOR        _ dst s1 s2 -> mkRU [s1,s2] [dst]
+
     _other              -> panic "regUsage: unrecognised instr"
  where
     -- # Definitions
@@ -667,6 +675,11 @@ x86_patchRegsOfInstr instr env
     XADD fmt src dst     -> patch2 (XADD fmt) src dst
     CMPXCHG fmt src dst  -> patch2 (CMPXCHG fmt) src dst
     MFENCE               -> instr
+
+    -- vector instructions
+    VBROADCASTSS fmt dst src   -> VBROADCASTSS fmt (env dst) (patchOp src)
+    VMOVUPS      fmt dst src   -> VMOVUPS fmt (env dst) (env src)
+    VPXOR        fmt dst s1 s2 -> VPXOR fmt (env dst) (env s1) (env s2)
 
     _other              -> panic "patchRegs: unrecognised instr"
 

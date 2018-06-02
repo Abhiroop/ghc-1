@@ -274,7 +274,9 @@ data ChildCode64
 data Register
         = Fixed Format Reg InstrBlock
         | Any   Format (Reg -> InstrBlock)
+        | FixedV VecFormat Reg InstrBlock
         | AnyV  VecFormat (Reg -> InstrBlock)
+
         -- The AnyV is experimental, the `anyReg` function (which `getAnyReg` calls)
         -- removes the removes the data constructor and just returns the
         -- (Reg -> InstrBlock) part
@@ -309,6 +311,7 @@ getVecRegisterReg :: Platform -> Bool -> VecFormat -> CmmReg -> Reg
 getVecRegisterReg _ _ format (CmmLocal (LocalReg u pk))
   | isVecType pk = RegVirtual (mkVirtualVecReg u format)
   | otherwise    = RegVirtual (mkVirtualReg u FF80)
+getVecRegisterReg platform use_avx _ c = getRegisterReg platform use_avx c
 
 -- | Memory addressing modes passed up the tree.
 data Amode
@@ -524,16 +527,23 @@ getRegister' dflags is32Bit (CmmReg reg)
         _ ->
             do use_sse2 <- sse2Enabled
                use_avx <- avxEnabled
-               let
-                 fmt = cmmTypeFormat (cmmRegType dflags reg)
-                 format | not use_avx && not use_sse2 && isFloatFormat fmt = FF80
-                        | otherwise                         = fmt
-               --
-               let platform = targetPlatform dflags
-               return (Fixed format
-                             (getRegisterReg platform use_sse2 reg)
-                             nilOL)
+               let cmmregtype = cmmRegType dflags reg
+               if isVecType cmmregtype
+                 then return (vectorRegister cmmregtype use_avx)
+                 else return (standardRegister cmmregtype use_avx use_sse2)
+  where
+    vectorRegister crt ua
+      | ua = let vecfmt = cmmVecTypeFormat crt
+                 platform = targetPlatform dflags
+              in (FixedV vecfmt (getVecRegisterReg platform ua vecfmt reg) nilOL)
+      | otherwise = undefined
 
+    standardRegister crt ua us =
+      let fmt = cmmTypeFormat crt
+          format | not ua && not us && isFloatFormat fmt = FF80
+                 | otherwise                             = fmt
+          platform = targetPlatform dflags
+       in (Fixed format (getRegisterReg platform us reg) nilOL)
 
 getRegister' dflags is32Bit (CmmRegOff r n)
   = getRegister' dflags is32Bit $ mangleIndexTree dflags r n
@@ -653,13 +663,13 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
 -- MO_VF_Insert_4_W32(   _c1JS::Fx4V128,           1.5 :: W32, 0 :: W32)
 -- CmmMachOp   len wid  x@CmmReg (CmmLocal src)       y          _
 -- return type :: AnyV  VecFormat (Reg -> InstrBlock)
-getRegister' _ _ e@(CmmMachOp mop [x,(CmmLit l),_]) = do --ternary MachOps for broadcasts
+getRegister' _ _ (CmmMachOp mop [x,(CmmLit l),_]) = do --ternary MachOps for broadcasts
   avx <- avxEnabled
   case mop of
-    MO_VF_Insert len wid | avx -> let f = VecFormat len FmtFloat wid
-                                   in return $
-                                      AnyV f (\r -> unitOL (VBROADCASTSS f r (OpImm (litToImm l))))
-                         | otherwise -> needLlvm
+    MO_VF_Insert len wid
+      | avx -> let f = VecFormat len FmtFloat wid
+                in return $ AnyV f (\r -> unitOL (VBROADCASTSS f r (OpImm (litToImm l))))
+      | otherwise -> needLlvm
     _ -> needLlvm
 
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
@@ -1045,10 +1055,24 @@ getRegister' dflags is32Bit (CmmLit lit)
         -- small memory model (see gcc docs, -mcmodel=small).
 
 getRegister' dflags _ (CmmLit lit)
-  = do let format = cmmTypeFormat (cmmLitType dflags lit)
-           imm = litToImm lit
-           code dst = unitOL (MOV format (OpImm imm) (OpReg dst))
-       return (Any format code)
+  = do let cmmtype = cmmLitType dflags lit
+       if isVecType cmmtype
+         then (vectorRegister cmmtype)
+         else (standardRegister cmmtype)
+  where
+    vectorRegister ctype
+      = do
+      let format = cmmVecTypeFormat ctype
+          -- CmmLit (CmmVec [CmmLit,CmmLit,...])
+          -- TODO: modify below to use SET
+          code dst = unitOL (VPXOR format dst dst dst)
+      return (AnyV format code)
+    standardRegister ctype
+      = do
+      let format = cmmTypeFormat ctype
+          imm = litToImm lit
+          code dst = unitOL (MOV format (OpImm imm) (OpReg dst))
+      return (Any format code)
 
 getRegister' _ _ other
     | isVecExpr other  = needLlvm
@@ -1069,10 +1093,10 @@ getAnyReg expr = do
   anyReg r
 
 anyReg :: Register -> NatM (Reg -> InstrBlock)
-anyReg (AnyV _ code)         = return code
-anyReg (Any _ code)          = return code
-anyReg (Fixed rep reg fcode) = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
-
+anyReg (AnyV _ code)          = return code
+anyReg (Any _ code)           = return code
+anyReg (Fixed rep reg fcode)  = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
+anyReg (FixedV rep reg fcode) = return (\dst -> fcode `snocOL` vecreg2reg rep reg dst)
 -- A bit like getSomeReg, but we want a reg that can be byte-addressed.
 -- Fixed registers might not be byte-addressable, so we make sure we've
 -- got a temporary, inserting an extra reg copy if necessary.
@@ -1119,6 +1143,8 @@ reg2reg format src dst
   | format == FF80 = GMOV src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
 
+vecreg2reg :: VecFormat -> Reg -> Reg -> Instr
+vecreg2reg format src dst = VMOVUPS format dst src
 
 --------------------------------------------------------------------------------
 getAmode :: CmmExpr -> NatM Amode

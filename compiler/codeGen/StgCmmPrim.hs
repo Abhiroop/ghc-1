@@ -677,7 +677,7 @@ emitPrimOp _      [res] Word2DoubleOp [w] = emitPrimCall [res]
 -- SIMD primops
 emitPrimOp dflags [res] (VecBroadcastOp vcat n w) [e] = do
     checkVecCompatibility dflags vcat n w
-    doVecPackOp (vecElemInjectCast dflags vcat w) ty zeros (replicate n e) res
+    doVecPackOp (vecElemInjectCast dflags vcat w) ty zeros (replicate 1 e) res
   where
     zeros :: CmmExpr
     zeros = CmmLit $ CmmVec (replicate n zero)
