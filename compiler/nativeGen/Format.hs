@@ -18,7 +18,8 @@ module Format (
     cmmTypeFormat,
     cmmVecTypeFormat,
     formatToWidth,
-    formatInBytes
+    formatInBytes,
+    vecFormatToWidth
 )
 
 where
@@ -106,11 +107,7 @@ cmmVecTypeFormat ty
                     in if isFloatType (vecElemType ty)
                        then VecFormat l FmtFloat w
                        else VecFormat l FmtInt w
-  | otherwise    = defaultVecFormat
-
--- TODO: Not sure what should be the otherwise case so adding a default
-defaultVecFormat :: VecFormat
-defaultVecFormat = VecFormat 8 FmtFloat W256
+  | otherwise    = pprPanic "incorrect function call for CmmType" (ppr ty)
 
 -- | Get the Width of a Format.
 formatToWidth :: Format -> Width
@@ -126,3 +123,7 @@ formatToWidth format
 
 formatInBytes :: Format -> Int
 formatInBytes = widthInBytes . formatToWidth
+
+-- | Get the Width of a Vector Format.
+vecFormatToWidth :: VecFormat -> Width
+vecFormatToWidth (VecFormat l _ w) = widthFromBytes (widthInBytes w `div` l)

@@ -781,10 +781,14 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 
 -- Vector Instructions
 
-pprInstr (VADDPS format op1 op2)       = pprVecFormatOpOp (sLit "vaddps") format op1 op2
-pprInstr (VBROADCASTSS format to from) = pprVecFormatRegOp (sLit "vbroadcastss") format to from
-pprInstr (VMOVUPS format to from)      = pprVecFormatRegReg (sLit "vmovups") format to from
-pprInstr (VPXOR format dst s1 s2)      = pprVecFormatRegRegReg (sLit "vpxor") format dst s1 s2
+pprInstr (VADDPS format op1 op2)
+  = pprVecFormatOpOp (sLit "vaddps") format op1 op2
+pprInstr (VBROADCASTSS format to from)
+  = pprVecFormatRegOp (sLit "vbroadcastss") format to from
+pprInstr (VMOVUPS format to from)
+  = pprVecFormatRegReg (sLit "vmovups") format to from
+pprInstr (VPXOR format dst s1 s2)
+  = pprVecFormatRegRegReg (sLit "vpxor") format dst s1 s2
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2

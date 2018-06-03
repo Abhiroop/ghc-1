@@ -536,7 +536,7 @@ getRegister' dflags is32Bit (CmmReg reg)
       | ua = let vecfmt = cmmVecTypeFormat crt
                  platform = targetPlatform dflags
               in (FixedV vecfmt (getVecRegisterReg platform ua vecfmt reg) nilOL)
-      | otherwise = undefined
+      | otherwise = pprPanic "only avx instructions supported currently" (ppr crt)
 
     standardRegister crt ua us =
       let fmt = cmmTypeFormat crt
