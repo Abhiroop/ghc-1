@@ -22,6 +22,7 @@ module NCGMonad (
         getBlockIdNat,
         getNewLabelNat,
         getNewRegNat,
+        getNewVecRegNat,
         getNewRegPairNat,
         getPicBaseMaybeNat,
         getPicBaseNat,
@@ -168,6 +169,12 @@ getNewRegNat rep
  = do u <- getUniqueNat
       dflags <- getDynFlags
       return (RegVirtual $ targetMkVirtualReg (targetPlatform dflags) u rep)
+
+getNewVecRegNat :: VecFormat -> NatM Reg
+getNewVecRegNat rep
+ = do u <- getUniqueNat
+      dflags <- getDynFlags
+      return (RegVirtual $ targetMkVecVirtualReg (targetPlatform dflags) u rep)
 
 
 getNewRegPairNat :: Format -> NatM (Reg,Reg)

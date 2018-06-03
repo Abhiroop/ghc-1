@@ -308,9 +308,9 @@ getRegisterReg platform _ (CmmGlobal mid)
 -- only to pass VecFormat which might be later useful for
 -- the register allocator
 getVecRegisterReg :: Platform -> Bool -> VecFormat -> CmmReg -> Reg
-getVecRegisterReg _ _ format (CmmLocal (LocalReg u pk))
-  | isVecType pk = RegVirtual (mkVirtualVecReg u format)
-  | otherwise    = RegVirtual (mkVirtualReg u FF80)
+getVecRegisterReg _ use_avx format (CmmLocal (LocalReg u pk))
+  | isVecType pk && use_avx = RegVirtual (mkVirtualVecReg u format)
+  | otherwise               = RegVirtual (mkVirtualReg u FF80)
 getVecRegisterReg platform use_avx _ c = getRegisterReg platform use_avx c
 
 -- | Memory addressing modes passed up the tree.
@@ -663,12 +663,16 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
 -- MO_VF_Insert_4_W32(   _c1JS::Fx4V128,           1.5 :: W32, 0 :: W32)
 -- CmmMachOp   len wid  x@CmmReg (CmmLocal src)       y          _
 -- return type :: AnyV  VecFormat (Reg -> InstrBlock)
-getRegister' _ _ (CmmMachOp mop [x,(CmmLit l),_]) = do --ternary MachOps for broadcasts
+getRegister' _ _ (CmmMachOp mop [_,l,_]) = do --ternary MachOps for broadcasts
   avx <- avxEnabled
+  x_code <- getAnyReg l
+  tmp <- getNewRegNat FF32
   case mop of
     MO_VF_Insert len wid
       | avx -> let f = VecFormat len FmtFloat wid
-                in return $ AnyV f (\r -> unitOL (VBROADCASTSS f r (OpImm (litToImm l))))
+                in return $ AnyV f (\r ->
+                                      x_code tmp `snocOL`
+                                      VBROADCASTSS f r (OpReg tmp))
       | otherwise -> needLlvm
     _ -> needLlvm
 
@@ -1062,11 +1066,12 @@ getRegister' dflags _ (CmmLit lit)
   where
     vectorRegister ctype
       = do
-      let format = cmmVecTypeFormat ctype
+      let format   = cmmVecTypeFormat ctype
           -- CmmLit (CmmVec [CmmLit,CmmLit,...])
           -- TODO: modify below to use SET
           code dst = unitOL (VPXOR format dst dst dst)
       return (AnyV format code)
+
     standardRegister ctype
       = do
       let format = cmmTypeFormat ctype
@@ -1206,7 +1211,7 @@ getAmode' _ (CmmMachOp (MO_Add _)
 getAmode' _ (CmmMachOp (MO_Add _) [x,y])
   = x86_complex_amode x y 0 0
 
-getAmode' is32Bit (CmmLit lit) | is32BitLit is32Bit lit
+getAmode' is32Bit c@(CmmLit lit) | is32BitLit is32Bit lit
   = return (Amode (ImmAddr (litToImm lit) 0) nilOL)
 
 getAmode' _ expr = do

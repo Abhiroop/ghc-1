@@ -13,6 +13,7 @@ module TargetReg (
         targetRealRegSqueeze,
         targetClassOfRealReg,
         targetMkVirtualReg,
+        targetMkVecVirtualReg,
         targetRegDotColor,
         targetClassOfReg
 )
@@ -106,6 +107,23 @@ targetMkVirtualReg platform
       ArchMipsel    -> panic "targetMkVirtualReg ArchMipsel"
       ArchJavaScript-> panic "targetMkVirtualReg ArchJavaScript"
       ArchUnknown   -> panic "targetMkVirtualReg ArchUnknown"
+
+targetMkVecVirtualReg :: Platform -> Unique -> VecFormat -> VirtualReg
+targetMkVecVirtualReg platform
+    = case platformArch platform of
+      ArchX86       -> X86.mkVirtualVecReg
+      ArchX86_64    -> X86.mkVirtualVecReg
+      ArchPPC       -> panic "targetMkVecVirtualReg ArchPPC"
+      ArchSPARC     -> panic "targetMkVecVirtualREg ArchSPARC"
+      ArchSPARC64   -> panic "targetMkVecVirtualReg ArchSPARC64"
+      ArchPPC_64 _  -> panic "targetMkVecVirtualReg ArchPPC_64"
+      ArchARM _ _ _ -> panic "targetMkVecVirtualReg ArchARM"
+      ArchARM64     -> panic "targetMkVecVirtualReg ArchARM64"
+      ArchAlpha     -> panic "targetMkVecVirtualReg ArchAlpha"
+      ArchMipseb    -> panic "targetMkVecVirtualReg ArchMipseb"
+      ArchMipsel    -> panic "targetMkVecVirtualReg ArchMipsel"
+      ArchJavaScript-> panic "targetMkVecVirtualReg ArchJavaScript"
+      ArchUnknown   -> panic "targetMkVecVirtualReg ArchUnknown"
 
 targetRegDotColor :: Platform -> RealReg -> SDoc
 targetRegDotColor platform
