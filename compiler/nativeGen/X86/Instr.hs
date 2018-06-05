@@ -219,7 +219,7 @@ data Instr
 
         -- Vector Instructions
         -- Broadcast
-        | VBROADCASTSS VecFormat Reg Operand
+        | VBROADCASTSS VecFormat AddrMode Reg
 
         | VMOVUPS      VecFormat Reg Reg
 
@@ -491,7 +491,7 @@ x86_regUsageOfInstr platform instr
     MFENCE -> noUsage
 
     -- vector instructions
-    VBROADCASTSS _ dst src   -> mkRU (use_R src []) [dst]
+    VBROADCASTSS _ src dst   -> mkRU (use_EA src []) [dst]
     VMOVUPS      _ dst src   -> mkRU [src] [dst]
     VPXOR        _ dst s1 s2 -> mkRU [s1,s2] [dst]
 
@@ -677,7 +677,7 @@ x86_patchRegsOfInstr instr env
     MFENCE               -> instr
 
     -- vector instructions
-    VBROADCASTSS fmt dst src   -> VBROADCASTSS fmt (env dst) (patchOp src)
+    VBROADCASTSS fmt src dst   -> VBROADCASTSS fmt (lookupAddr src) (env dst)
     VMOVUPS      fmt dst src   -> VMOVUPS fmt (env dst) (env src)
     VPXOR        fmt dst s1 s2 -> VPXOR fmt (env dst) (env s1) (env s2)
 

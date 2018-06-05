@@ -124,6 +124,6 @@ formatToWidth format
 formatInBytes :: Format -> Int
 formatInBytes = widthInBytes . formatToWidth
 
--- | Get the Width of a Vector Format.
+-- | Get the width of one individual element of the vector.
 vecFormatToWidth :: VecFormat -> Width
 vecFormatToWidth (VecFormat l _ w) = widthFromBytes (widthInBytes w `div` l)

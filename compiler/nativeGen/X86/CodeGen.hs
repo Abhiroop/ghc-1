@@ -284,6 +284,9 @@ data Register
 swizzleRegisterRep :: Register -> Format -> Register
 swizzleRegisterRep (Fixed _ reg code) format = Fixed format reg code
 swizzleRegisterRep (Any _ codefn)     format = Any   format codefn
+swizzleRegisterRep _ _ = pprPanic (unlines ["swizzleRegisterRep not",
+                                            "implemented for vectors"])
+                         empty
 
 
 -- | Grab the Reg for a CmmReg
@@ -310,7 +313,9 @@ getRegisterReg platform _ (CmmGlobal mid)
 getVecRegisterReg :: Platform -> Bool -> VecFormat -> CmmReg -> Reg
 getVecRegisterReg _ use_avx format (CmmLocal (LocalReg u pk))
   | isVecType pk && use_avx = RegVirtual (mkVirtualVecReg u format)
-  | otherwise               = RegVirtual (mkVirtualReg u FF80)
+  | otherwise               = pprPanic (unlines ["avx flag is not enabled" ,
+                                                "or this is not a vector register"])
+                              (ppr pk)
 getVecRegisterReg platform use_avx _ c = getRegisterReg platform use_avx c
 
 -- | Memory addressing modes passed up the tree.
@@ -375,6 +380,7 @@ getSomeReg expr = do
         return (tmp, code tmp)
     Fixed _ reg code ->
         return (reg, code)
+    _ -> pprPanic "getSomeReg not implemented for vectors" empty
 
 
 assignMem_I64Code :: CmmExpr -> CmmExpr -> NatM InstrBlock
@@ -660,20 +666,17 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
       return $ Any II64 (\dst -> unitOL $
         LEA II64 (OpAddr (ripRel (litToImm displacement))) (OpReg dst))
 
--- MO_VF_Insert_4_W32(   _c1JS::Fx4V128,           1.5 :: W32, 0 :: W32)
--- CmmMachOp   len wid  x@CmmReg (CmmLocal src)       y          _
--- return type :: AnyV  VecFormat (Reg -> InstrBlock)
-getRegister' _ _ (CmmMachOp mop [_,l,_]) = do --ternary MachOps for broadcasts
+--ternary MachOps for broadcasts
+getRegister' _ _ (CmmMachOp mop [_,(CmmLit lit@(CmmFloat _ w)),_]) = do
   avx <- avxEnabled
-  x_code <- getAnyReg l
-  tmp <- getNewRegNat FF32
+  Amode addr code <- memConstant (widthInBytes w) lit
   case mop of
     MO_VF_Insert len wid
       | avx -> let f = VecFormat len FmtFloat wid
                 in return $ AnyV f (\r ->
-                                      x_code tmp `snocOL`
-                                      VBROADCASTSS f r (OpReg tmp))
-      | otherwise -> needLlvm
+                                      code `snocOL`
+                                      (VBROADCASTSS f addr r))
+      | otherwise -> pprPanic "avx flag not enabled" empty
     _ -> needLlvm
 
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
@@ -1122,6 +1125,7 @@ getByteReg expr = do
                     -- ToDo: could optimise slightly by checking for
                     -- byte-addressable real registers, but that will
                     -- happen very rarely if at all.
+                _ -> pprPanic "getByteReg not implemented for vectors" empty
       else getSomeReg expr -- all regs are byte-addressable on x86_64
 
 -- Another variant: this time we want the result in a register that cannot
@@ -1142,6 +1146,7 @@ getNonClobberedReg expr = do
                 return (tmp, code `snocOL` reg2reg rep reg tmp)
         | otherwise ->
                 return (reg, code)
+    _ -> pprPanic "getNonClobberedReg not implemented for vectors" empty
 
 reg2reg :: Format -> Reg -> Reg -> Instr
 reg2reg format src dst
@@ -1211,7 +1216,7 @@ getAmode' _ (CmmMachOp (MO_Add _)
 getAmode' _ (CmmMachOp (MO_Add _) [x,y])
   = x86_complex_amode x y 0 0
 
-getAmode' is32Bit c@(CmmLit lit) | is32BitLit is32Bit lit
+getAmode' is32Bit (CmmLit lit) | is32BitLit is32Bit lit
   = return (Amode (ImmAddr (litToImm lit) 0) nilOL)
 
 getAmode' _ expr = do
@@ -1357,6 +1362,9 @@ addAlignmentCheck align reg =
     case reg of
       Fixed fmt reg code -> Fixed fmt reg (code `appOL` check fmt reg)
       Any fmt f          -> Any fmt (\reg -> f reg `appOL` check fmt reg)
+      _                  -> pprPanic (unlines ["alignment check not",
+                                               "implemented for vectors"])
+                            empty
   where
     check :: Format -> Reg -> InstrBlock
     check fmt reg =

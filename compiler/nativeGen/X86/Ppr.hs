@@ -239,7 +239,9 @@ instance Outputable Instr where
 -- TODO: Currently just using SSE registers
 -- This has to be extended.
 pprVecReg :: VecFormat -> Reg -> SDoc
-pprVecReg _ r
+pprVecReg f@(VecFormat _ FmtInt _) r
+  = pprReg II32 r
+pprVecReg f@(VecFormat _ FmtFloat _) r
   = pprReg FF32 r
 
 pprReg :: Format -> Reg -> SDoc
@@ -783,8 +785,8 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 
 pprInstr (VADDPS format op1 op2)
   = pprVecFormatOpOp (sLit "vaddps") format op1 op2
-pprInstr (VBROADCASTSS format to from)
-  = pprVecFormatRegOp (sLit "vbroadcastss") format to from
+pprInstr (VBROADCASTSS format from to)
+  = pprVecFormatRegOp (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format to from)
   = pprVecFormatRegReg (sLit "vmovups") format to from
 pprInstr (VPXOR format dst s1 s2)
@@ -1307,14 +1309,14 @@ pprFormatOpReg name format op1 reg2
         pprReg (archWordFormat (target32Bit platform)) reg2
     ]
 
-pprVecFormatRegOp :: LitString -> VecFormat -> Reg -> Operand -> SDoc
-pprVecFormatRegOp name format reg1 op2
+pprVecFormatRegOp :: LitString -> VecFormat -> AddrMode -> Reg -> SDoc
+pprVecFormatRegOp name format op1 reg2
   = sdocWithPlatform $ \platform ->
     hcat [
         pprVecMnemonic name format,
-        pprVecReg undefined reg1,
+        pprAddr op1,
         comma,
-        pprOperand FF32 op2
+        pprVecReg format reg2
     ]
 
 pprCondOpReg :: LitString -> Format -> Cond -> Operand -> Reg -> SDoc
