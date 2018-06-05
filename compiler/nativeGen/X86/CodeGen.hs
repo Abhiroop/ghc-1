@@ -277,9 +277,8 @@ data Register
         | FixedV VecFormat Reg InstrBlock
         | AnyV  VecFormat (Reg -> InstrBlock)
 
-        -- The AnyV is experimental, the `anyReg` function (which `getAnyReg` calls)
-        -- removes the removes the data constructor and just returns the
-        -- (Reg -> InstrBlock) part
+        -- The FixedV and AnyV constructors are added solely to
+        -- capture the VecFormat datatype instead of Format
 
 swizzleRegisterRep :: Register -> Format -> Register
 swizzleRegisterRep (Fixed _ reg code) format = Fixed format reg code
@@ -541,8 +540,10 @@ getRegister' dflags is32Bit (CmmReg reg)
     vectorRegister crt ua
       | ua = let vecfmt = cmmVecTypeFormat crt
                  platform = targetPlatform dflags
-              in (FixedV vecfmt (getVecRegisterReg platform ua vecfmt reg) nilOL)
-      | otherwise = pprPanic "only avx instructions supported currently" (ppr crt)
+              in (FixedV vecfmt
+                  (getVecRegisterReg platform ua vecfmt reg) nilOL)
+      | otherwise = pprPanic
+                    "only avx instructions supported currently" (ppr crt)
 
     standardRegister crt ua us =
       let fmt = cmmTypeFormat crt
@@ -1068,13 +1069,7 @@ getRegister' dflags _ (CmmLit lit)
          else (standardRegister cmmtype)
   where
     vectorRegister ctype
-      = do
-      let format   = cmmVecTypeFormat ctype
-          -- CmmLit (CmmVec [CmmLit,CmmLit,...])
-          -- TODO: modify below to use SET
-          code dst = unitOL (VPXOR format dst dst dst)
-      return (AnyV format code)
-
+      = pprPanic "MOV operations for vector literals not yet implemented" empty
     standardRegister ctype
       = do
       let format = cmmTypeFormat ctype
@@ -1103,8 +1098,10 @@ getAnyReg expr = do
 anyReg :: Register -> NatM (Reg -> InstrBlock)
 anyReg (AnyV _ code)          = return code
 anyReg (Any _ code)           = return code
-anyReg (Fixed rep reg fcode)  = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
-anyReg (FixedV rep reg fcode) = return (\dst -> fcode `snocOL` vecreg2reg rep reg dst)
+anyReg (Fixed rep reg fcode)
+  = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
+anyReg (FixedV rep reg fcode)
+  = return (\dst -> fcode `snocOL` vecreg2reg rep reg dst)
 -- A bit like getSomeReg, but we want a reg that can be byte-addressed.
 -- Fixed registers might not be byte-addressable, so we make sure we've
 -- got a temporary, inserting an extra reg copy if necessary.

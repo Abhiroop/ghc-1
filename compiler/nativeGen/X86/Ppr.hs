@@ -788,8 +788,8 @@ pprInstr (VBROADCASTSS format from to)
   = pprVecFormatRegOp (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
   = pprVecFormatRegReg (sLit "vmovups") format from to
-pprInstr (VPXOR format dst s1 s2)
-  = pprVecFormatRegRegReg (sLit "vpxor") format dst s1 s2
+pprInstr (VPXOR format s1 s2 dst)
+  = pprVecFormatRegRegReg (sLit "vpxor") format s1 s2 dst
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1179,7 +1179,8 @@ pprOperand _ (OpAddr ea) = pprAddr ea
 
 pprVecOperand :: VecFormat -> Operand -> SDoc
 pprVecOperand f (OpReg r) = pprVecReg f r
-pprVecOperand _ _         = panic "Currently supported vector operations have operands which are registers only"
+pprVecOperand _ _
+  = panic "Currently supported vector operations have register operands only"
 
 pprMnemonic_  :: LitString -> SDoc
 pprMnemonic_ name =

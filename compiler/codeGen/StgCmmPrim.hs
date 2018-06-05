@@ -1639,7 +1639,7 @@ vecElemProjectCast _      _        _   =  Nothing
 checkVecCompatibility :: DynFlags -> PrimOpVecCat -> Length -> Width -> FCode ()
 checkVecCompatibility dflags vcat l w = do
     when (hscTarget dflags /= HscLlvm && hscTarget dflags /= HscAsm) $ do
-        sorry "SIMD vector instructions require the native code generator or the LLVM back-end."
+        sorry "SIMD vector instructions not supported for the C backend or GHCi"
     check vecWidth vcat l w
   where
     check :: Width -> PrimOpVecCat -> Length -> Width -> FCode ()
@@ -1652,9 +1652,9 @@ checkVecCompatibility dflags vcat l w = do
     check W256 FloatVec _ _ | not (isAvxEnabled dflags) =
         sorry $ "256-bit wide floating point " ++
                 "SIMD vector instructions require at least -mavx."
-    -- check W256 _ _ _ | not (isAvx2Enabled dflags) =
-    --     sorry $ "256-bit wide integer " ++
-    --             "SIMD vector instructions require at least -mavx2."
+    check W256 _ _ _ | not (isAvx2Enabled dflags) =
+        sorry $ "256-bit wide integer " ++
+                "SIMD vector instructions require at least -mavx2."
     check W512 _ _ _ | not (isAvx512fEnabled dflags) =
         sorry $ "512-bit wide " ++
                 "SIMD vector instructions require -mavx512f."
