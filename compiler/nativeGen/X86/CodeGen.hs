@@ -1154,7 +1154,7 @@ reg2reg format src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
 
 vecreg2reg :: VecFormat -> Reg -> Reg -> Instr
-vecreg2reg format src dst = VMOVUPS format dst src
+vecreg2reg format src dst = VMOVUPS format src dst
 
 --------------------------------------------------------------------------------
 getAmode :: CmmExpr -> NatM Amode

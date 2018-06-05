@@ -1671,7 +1671,7 @@ doVecPackOp :: Maybe MachOp  -- Cast from element to vector component
             -> [CmmExpr]     -- Elements
             -> CmmFormal     -- Destination for result
             -> FCode ()
-doVecPackOp maybe_pre_write_cast ty z es res = do
+doVecPackOp maybe_pre_write_cast ty _ es res = do
     dst <- newTemp ty
     --emitAssign (CmmLocal dst) z
     vecPack dst es 0

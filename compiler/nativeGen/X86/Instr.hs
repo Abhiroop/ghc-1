@@ -492,7 +492,7 @@ x86_regUsageOfInstr platform instr
 
     -- vector instructions
     VBROADCASTSS _ src dst   -> mkRU (use_EA src []) [dst]
-    VMOVUPS      _ dst src   -> mkRU [src] [dst]
+    VMOVUPS      _ src dst   -> mkRU [src] [dst]
     VPXOR        _ dst s1 s2 -> mkRU [s1,s2] [dst]
 
     _other              -> panic "regUsage: unrecognised instr"
@@ -678,7 +678,7 @@ x86_patchRegsOfInstr instr env
 
     -- vector instructions
     VBROADCASTSS fmt src dst   -> VBROADCASTSS fmt (lookupAddr src) (env dst)
-    VMOVUPS      fmt dst src   -> VMOVUPS fmt (env dst) (env src)
+    VMOVUPS      fmt src dst   -> VMOVUPS fmt (env src) (env dst)
     VPXOR        fmt dst s1 s2 -> VPXOR fmt (env dst) (env s1) (env s2)
 
     _other              -> panic "patchRegs: unrecognised instr"

@@ -239,9 +239,9 @@ instance Outputable Instr where
 -- TODO: Currently just using SSE registers
 -- This has to be extended.
 pprVecReg :: VecFormat -> Reg -> SDoc
-pprVecReg f@(VecFormat _ FmtInt _) r
+pprVecReg (VecFormat _ FmtInt _) r
   = pprReg II32 r
-pprVecReg f@(VecFormat _ FmtFloat _) r
+pprVecReg (VecFormat _ FmtFloat _) r
   = pprReg FF32 r
 
 pprReg :: Format -> Reg -> SDoc
@@ -384,8 +384,7 @@ pprFormat_x87 x
 -- TODO: As of now the Instructions include the format data as well
 -- modify this later
 pprVecFormat :: VecFormat -> SDoc
-pprVecFormat (VecFormat l sf w)
-  = text ""
+pprVecFormat _ = empty
 
 pprLength :: Length -> SDoc
 pprLength 4 = ptext $ sLit "4"
@@ -787,8 +786,8 @@ pprInstr (VADDPS format op1 op2)
   = pprVecFormatOpOp (sLit "vaddps") format op1 op2
 pprInstr (VBROADCASTSS format from to)
   = pprVecFormatRegOp (sLit "vbroadcastss") format from to
-pprInstr (VMOVUPS format to from)
-  = pprVecFormatRegReg (sLit "vmovups") format to from
+pprInstr (VMOVUPS format from to)
+  = pprVecFormatRegReg (sLit "vmovups") format from to
 pprInstr (VPXOR format dst s1 s2)
   = pprVecFormatRegRegReg (sLit "vpxor") format dst s1 s2
 
@@ -1311,7 +1310,7 @@ pprFormatOpReg name format op1 reg2
 
 pprVecFormatRegOp :: LitString -> VecFormat -> AddrMode -> Reg -> SDoc
 pprVecFormatRegOp name format op1 reg2
-  = sdocWithPlatform $ \platform ->
+  = sdocWithPlatform $ \_ ->
     hcat [
         pprVecMnemonic name format,
         pprAddr op1,
