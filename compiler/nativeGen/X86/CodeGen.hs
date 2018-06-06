@@ -1068,7 +1068,7 @@ getRegister' dflags _ (CmmLit lit)
          then (vectorRegister cmmtype)
          else (standardRegister cmmtype)
   where
-    vectorRegister ctype
+    vectorRegister _
       = pprPanic "MOV operations for vector literals not yet implemented" empty
     standardRegister ctype
       = do
@@ -1143,7 +1143,7 @@ getNonClobberedReg expr = do
                 return (tmp, code `snocOL` reg2reg rep reg tmp)
         | otherwise ->
                 return (reg, code)
-    _ -> pprPanic "getNonClobberedReg not implemented for vectors" empty
+    _ -> pprPanic "getNonClobberedReg not implemented for vectors" (ppr expr)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
 reg2reg format src dst
