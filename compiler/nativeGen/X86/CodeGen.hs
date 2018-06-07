@@ -668,7 +668,7 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
         LEA II64 (OpAddr (ripRel (litToImm displacement))) (OpReg dst))
 
 --ternary MachOps for broadcasts
-getRegister' _ _ (CmmMachOp mop [_,(CmmLit lit@(CmmFloat _ w)),_]) = do
+getRegister' _ _ (CmmMachOp mop [(CmmLit lit@(CmmFloat _ w)),_]) = do
   avx <- avxEnabled
   Amode addr code <- memConstant (widthInBytes w) lit
   case mop of

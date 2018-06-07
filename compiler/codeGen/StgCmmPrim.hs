@@ -1684,9 +1684,9 @@ doVecPackOp maybe_pre_write_cast ty _ es res = do
         dst <- newTemp ty
         if isFloatType (vecElemType ty)
           then emitAssign (CmmLocal dst) (CmmMachOp (MO_VF_Insert len wid)
-                                                    [CmmReg (CmmLocal src), cast e, iLit])
+                                                    [cast e, iLit])
           else emitAssign (CmmLocal dst) (CmmMachOp (MO_V_Insert len wid)
-                                                    [CmmReg (CmmLocal src), cast e, iLit])
+                                                    [cast e, iLit])
         vecPack dst es (i + 1)
       where
         -- vector indices are always 32-bits

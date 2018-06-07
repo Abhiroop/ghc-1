@@ -426,7 +426,7 @@ pprImm (ImmCLbl l)    = ppr l
 pprImm (ImmIndex l i) = ppr l <> char '+' <> int i
 pprImm (ImmLit s)     = s
 
-pprImm (ImmFloat _) = text "naughty float immediate"
+pprImm (ImmFloat _)  = text "naughty float immediate"
 pprImm (ImmDouble _) = text "naughty double immediate"
 
 pprImm (ImmConstantSum a b) = pprImm a <> char '+' <> pprImm b
