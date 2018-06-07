@@ -221,9 +221,11 @@ data Instr
         -- Broadcast
         | VBROADCASTSS VecFormat AddrMode Reg
 
-        | VMOVUPS      VecFormat Reg Reg
+        | VMOVUPS      VecFormat Operand Reg
 
         | VPXOR        VecFormat Reg Reg Reg
+
+        | VEXTRACTPS   VecFormat Operand Reg Operand
         -- Arithmetic
         -- TODO: please change the Operand to Reg
         | VADDPS      VecFormat Operand Operand
@@ -492,8 +494,10 @@ x86_regUsageOfInstr platform instr
 
     -- vector instructions
     VBROADCASTSS _ src dst   -> mkRU (use_EA src []) [dst]
-    VMOVUPS      _ src dst   -> mkRU [src] [dst]
+    VMOVUPS      _ src dst   -> mkRU (use_R src []) [dst]
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
+
+    VEXTRACTPS   _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
 
     _other              -> panic "regUsage: unrecognised instr"
  where
@@ -678,9 +682,9 @@ x86_patchRegsOfInstr instr env
 
     -- vector instructions
     VBROADCASTSS fmt src dst   -> VBROADCASTSS fmt (lookupAddr src) (env dst)
-    VMOVUPS      fmt src dst   -> VMOVUPS fmt (env src) (env dst)
+    VMOVUPS      fmt src dst   -> VMOVUPS fmt (patchOp src) (env dst)
     VPXOR        fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
-
+    VEXTRACTPS   fmt off src dst -> VEXTRACTPS fmt (patchOp off) (env src) (patchOp dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where

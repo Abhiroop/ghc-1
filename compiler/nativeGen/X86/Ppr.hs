@@ -239,9 +239,7 @@ instance Outputable Instr where
 -- TODO: Currently just using SSE registers
 -- This has to be extended.
 pprVecReg :: VecFormat -> Reg -> SDoc
-pprVecReg (VecFormat _ FmtInt _) r
-  = pprReg II32 r
-pprVecReg (VecFormat _ FmtFloat _) r
+pprVecReg _ r
   = pprReg FF32 r
 
 pprReg :: Format -> Reg -> SDoc
@@ -785,11 +783,13 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 pprInstr (VADDPS format op1 op2)
   = pprVecFormatOpOp (sLit "vaddps") format op1 op2
 pprInstr (VBROADCASTSS format from to)
-  = pprVecFormatRegOp (sLit "vbroadcastss") format from to
+  = pprVecFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
-  = pprVecFormatRegReg (sLit "vmovups") format from to
+  = pprVecFormatOpReg (sLit "vmovups") format from to
 pprInstr (VPXOR format s1 s2 dst)
   = pprVecFormatRegRegReg (sLit "vpxor") format s1 s2 dst
+pprInstr (VEXTRACTPS format offset from to)
+  = pprExtractFloat (sLit "vextractps") format offset from to
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1267,11 +1267,11 @@ pprFormatRegReg name format reg1 reg2
         pprReg format reg2
     ]
 
-pprVecFormatRegReg :: LitString -> VecFormat -> Reg -> Reg -> SDoc
-pprVecFormatRegReg name format reg1 reg2
+pprVecFormatOpReg :: LitString -> VecFormat -> Operand -> Reg -> SDoc
+pprVecFormatOpReg name format op1 reg2
   = hcat [
         pprVecMnemonic name format,
-        pprVecReg format  reg1,
+        pprOperand FF32 op1,
         comma,
         pprVecReg format reg2
     ]
@@ -1287,6 +1287,16 @@ pprVecFormatRegRegReg name format reg1 reg2 reg3
         pprVecReg format reg3
     ]
 
+pprExtractFloat :: LitString -> VecFormat -> Operand -> Reg -> Operand -> SDoc
+pprExtractFloat name format off reg1 op2
+  = hcat [
+        pprVecMnemonic name format,
+        pprOperand undefined off,
+        comma,
+        pprVecReg format reg1,
+        comma,
+        pprOperand FF32 op2
+    ]
 
 pprRegReg :: LitString -> Reg -> Reg -> SDoc
 pprRegReg name reg1 reg2
@@ -1309,8 +1319,8 @@ pprFormatOpReg name format op1 reg2
         pprReg (archWordFormat (target32Bit platform)) reg2
     ]
 
-pprVecFormatRegOp :: LitString -> VecFormat -> AddrMode -> Reg -> SDoc
-pprVecFormatRegOp name format op1 reg2
+pprVecFormatAddrReg :: LitString -> VecFormat -> AddrMode -> Reg -> SDoc
+pprVecFormatAddrReg name format op1 reg2
   = sdocWithPlatform $ \_ ->
     hcat [
         pprVecMnemonic name format,

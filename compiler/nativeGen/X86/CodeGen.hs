@@ -861,7 +861,9 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VS_Rem {}     -> needLlvm
       MO_VS_Neg {}     -> needLlvm
       MO_VF_Insert {}  -> needLlvm
-      MO_VF_Extract {} -> needLlvm
+
+      MO_VF_Extract l w | avx       -> vector_float_unpack l w x y
+                        | otherwise -> needLlvm
 
       MO_VF_Sub {}     -> needLlvm
       MO_VF_Mul {}     -> needLlvm
@@ -955,6 +957,33 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
        in genVectorTrivialCode fmt (VADDPS fmt) x y
     vector_float_add _ _ _ _ = undefined -- TODO: Remove this
     -- Add Other vector sizes and cases.
+
+    --------------------
+    -- NOTE:
+    -- (VEXTRACTPS $0, %xmm0, %xmm1) is not allowed,
+    -- so we use the more inefficient
+    -- VEXTRACTPS $0, %xmm0, addr
+    -- VMOVUPS  addr, %xmm1
+    -- to achieve the same
+    vector_float_unpack :: Length
+                        -> Width
+                        -> CmmExpr
+                        -> CmmExpr
+                        -> NatM Register
+    vector_float_unpack l w (CmmReg reg) (CmmLit lit)
+      = do
+      dflags <- getDynFlags
+      let format   = VecFormat l FmtFloat w
+          platform = targetPlatform dflags
+          r        = getVecRegisterReg platform True format reg
+          imm      = litToImm lit
+          addr     = spRel dflags 0
+          code dst
+            = (unitOL (VEXTRACTPS format (OpImm imm) r (OpAddr addr))) `snocOL`
+              (VMOVUPS format (OpAddr addr) dst)
+      return (AnyV format code)
+    vector_float_unpack _ _ c _
+      = pprPanic "Unpack not supported for : " (ppr c)
     --------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
     sub_code rep x (CmmLit (CmmInt y _))
@@ -1151,7 +1180,7 @@ reg2reg format src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
 
 vecreg2reg :: VecFormat -> Reg -> Reg -> Instr
-vecreg2reg format src dst = VMOVUPS format src dst
+vecreg2reg format src dst = VMOVUPS format (OpReg src) dst
 
 --------------------------------------------------------------------------------
 getAmode :: CmmExpr -> NatM Amode
@@ -1681,7 +1710,6 @@ assignReg_FltCode _ reg src = do
   let platform = targetPlatform dflags
   return (src_code (getRegisterReg platform use_sse2 reg))
 
---assignReg_VecCode :: VecFormat -> CmmReg -> CmmExpr -> NatM InstrBlock
 assignReg_VecCode format reg src = do
   use_avx <- avxEnabled
   src_code <- getAnyReg src -- NatM (Reg -> InstrBlock)
