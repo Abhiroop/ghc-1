@@ -389,10 +389,6 @@ pprLength 4 = ptext $ sLit "4"
 pprLength 8 = ptext $ sLit "8"
 pprLength _ = panic "This length of the vector is not supported currently"
 
-pprScalarFormat :: ScalarFormat -> SDoc
-pprScalarFormat FmtFloat = text "float"
-pprScalarFormat FmtInt   = text "int"
-
 pprWidth :: Width -> SDoc
 pprWidth w
   = ptext $ case w of
