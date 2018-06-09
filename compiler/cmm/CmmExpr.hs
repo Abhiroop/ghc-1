@@ -582,7 +582,11 @@ globalRegType dflags (VanillaReg _ VNonGcPtr) = bWord dflags
 globalRegType _      (FloatReg _)      = cmmFloat W32
 globalRegType _      (DoubleReg _)     = cmmFloat W64
 globalRegType _      (LongReg _)       = cmmBits W64
-globalRegType _      (XmmReg _)        = cmmVec 4 (cmmBits W32)
+-- NOTE:
+-- Initially this broke things in the Cmm Linter like:
+-- _B1::Fx4V128 = XMM1; //CmmAssign
+-- This change allows the above
+globalRegType _      (XmmReg _)        = cmmVec 4 (cmmFloat W32)
 globalRegType _      (YmmReg _)        = cmmVec 8 (cmmBits W32)
 globalRegType _      (ZmmReg _)        = cmmVec 16 (cmmBits W32)
 

@@ -781,7 +781,7 @@ pprInstr (VADDPS format op1 op2)
 pprInstr (VBROADCASTSS format from to)
   = pprVecFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
-  = pprVecFormatOpReg (sLit "vmovups") format from to
+  = pprVecFormatOpOp (sLit "vmovups") format from to
 pprInstr (VPXOR format s1 s2 dst)
   = pprVecFormatRegRegReg (sLit "vpxor") format s1 s2 dst
 pprInstr (VEXTRACTPS format offset from to)
@@ -1174,7 +1174,8 @@ pprOperand _ (OpImm i)   = pprDollImm i
 pprOperand _ (OpAddr ea) = pprAddr ea
 
 pprVecOperand :: VecFormat -> Operand -> SDoc
-pprVecOperand f (OpReg r) = pprVecReg f r
+pprVecOperand f (OpReg r)  = pprVecReg f r
+pprVecOperand _ (OpAddr ea) = pprAddr ea
 pprVecOperand _ _
   = panic "Currently supported vector operations have register operands only"
 
@@ -1227,15 +1228,6 @@ pprFormatOpOp name format op1 op2
         pprOperand format op2
     ]
 
-pprVecFormatOpOp :: LitString -> VecFormat -> Operand -> Operand -> SDoc
-pprVecFormatOpOp name format op1 op2
-  = hcat [
-        pprVecMnemonic name format,
-        pprVecOperand format op1,
-        comma,
-        pprVecOperand format op2
-    ]
-
 pprOpOp :: LitString -> Format -> Operand -> Operand -> SDoc
 pprOpOp name format op1 op2
   = hcat [
@@ -1261,6 +1253,16 @@ pprFormatRegReg name format reg1 reg2
         pprReg format reg1,
         comma,
         pprReg format reg2
+    ]
+
+--TODO: Rewrite this in terms of a single Format
+pprVecFormatOpOp :: LitString -> VecFormat -> Operand -> Operand -> SDoc
+pprVecFormatOpOp name format op1 op2
+  = hcat [
+        pprVecMnemonic name format,
+        pprOperand FF32 op1,
+        comma,
+        pprVecOperand undefined op2
     ]
 
 pprVecFormatOpReg :: LitString -> VecFormat -> Operand -> Reg -> SDoc

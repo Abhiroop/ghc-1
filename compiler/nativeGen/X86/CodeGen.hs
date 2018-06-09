@@ -209,9 +209,11 @@ stmtToInstrs stmt = do
     CmmStore addr src
       | isFloatType ty         -> assignMem_FltCode format addr src
       | is32Bit && isWord64 ty -> assignMem_I64Code      addr src
+      | isVecType ty           -> assignMem_VecCode vecformat addr src
       | otherwise              -> assignMem_IntCode format addr src
         where ty = cmmExprType dflags src
               format = cmmTypeFormat ty
+              vecformat = cmmVecTypeFormat ty
 
     CmmUnsafeForeignCall target result_regs args
        -> genCCall dflags is32Bit target result_regs args
@@ -980,7 +982,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           addr     = spRel dflags 0
           code dst
             = (unitOL (VEXTRACTPS format (OpImm imm) r (OpAddr addr))) `snocOL`
-              (VMOVUPS format (OpAddr addr) dst)
+              (VMOVUPS format (OpAddr addr) (OpReg dst))
       return (AnyV format code)
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
@@ -1172,7 +1174,12 @@ getNonClobberedReg expr = do
                 return (tmp, code `snocOL` reg2reg rep reg tmp)
         | otherwise ->
                 return (reg, code)
-    _ -> pprPanic "getNonClobberedReg not implemented for vectors" (ppr expr)
+    AnyV rep code -> do
+        tmp <- getNewVecRegNat rep
+        return (tmp, code tmp)
+    -- SIMD registers are never clobbered
+    -- see instrClobberedRegs function for clobbered registers
+    FixedV rep reg code -> return (reg, code)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
 reg2reg format src dst
@@ -1180,7 +1187,7 @@ reg2reg format src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
 
 vecreg2reg :: VecFormat -> Reg -> Reg -> Instr
-vecreg2reg format src dst = VMOVUPS format (OpReg src) dst
+vecreg2reg format src dst = VMOVUPS format (OpReg src) (OpReg dst)
 
 --------------------------------------------------------------------------------
 getAmode :: CmmExpr -> NatM Amode
@@ -1631,6 +1638,7 @@ assignReg_IntCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 assignMem_FltCode :: Format -> CmmExpr -> CmmExpr -> NatM InstrBlock
 assignReg_FltCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 
+assignMem_VecCode :: VecFormat -> CmmExpr -> CmmExpr -> NatM InstrBlock
 assignReg_VecCode :: VecFormat -> CmmReg -> CmmExpr -> NatM InstrBlock
 -- integer assignment to memory
 
@@ -1689,7 +1697,6 @@ assignReg_IntCode _ reg src = do
   code <- getAnyReg src
   return (code (getRegisterReg platform False{-no sse2-} reg))
 
-
 -- Floating point assignment to memory
 assignMem_FltCode pk addr src = do
   (src_reg, src_code) <- getNonClobberedReg src
@@ -1700,6 +1707,16 @@ assignMem_FltCode pk addr src = do
                addr_code `snocOL`
                 if use_sse2 then MOV pk (OpReg src_reg) (OpAddr addr)
                             else GST pk src_reg addr
+  return code
+
+assignMem_VecCode pk addr src = do
+  (src_reg, src_code) <- getNonClobberedReg src
+  Amode addr addr_code <- getAmode addr
+  use_avx <- avxEnabled
+  let
+        code = src_code `appOL`
+               addr_code `snocOL`
+               (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
   return code
 
 -- Floating point assignment to a register/temporary

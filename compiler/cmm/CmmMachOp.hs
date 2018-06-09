@@ -502,9 +502,7 @@ machOpArgReps dflags op =
     MO_VU_Rem  _ r      -> [r,r]
 
     MO_VF_Insert  _ r   -> [r,r]
-    -- Float operations occur in XMM registers
-    -- So we are hardcoding the width as W128
-    MO_VF_Extract _ r   -> [W128,r]
+    MO_VF_Extract l r   -> [typeWidth (vec l (cmmFloat r)),r]
 
     MO_VF_Add  _ r      -> [r,r]
     MO_VF_Sub  _ r      -> [r,r]
