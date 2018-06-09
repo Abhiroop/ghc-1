@@ -236,11 +236,6 @@ pprAlign bytes
 instance Outputable Instr where
     ppr instr = pprInstr instr
 
--- TODO: Currently just using SSE registers
--- This has to be extended.
-pprVecReg :: VecFormat -> Reg -> SDoc
-pprVecReg _ r
-  = pprReg FF32 r
 
 pprReg :: Format -> Reg -> SDoc
 pprReg f r
@@ -369,6 +364,8 @@ pprFormat x
                 FF32  -> sLit "ss"      -- "scalar single-precision float" (SSE2)
                 FF64  -> sLit "sd"      -- "scalar double-precision float" (SSE2)
                 FF80  -> sLit "t"
+                -- TODO: Extend this to print "ss", "ps" etc
+                VecFormat {} -> sLit ""
                 )
 
 pprFormat_x87 :: Format -> SDoc
@@ -379,27 +376,6 @@ pprFormat_x87 x
                 FF80  -> sLit "t"
                 _     -> panic "X86.Ppr.pprFormat_x87"
 
--- TODO: As of now the Instructions include the format data as well
--- modify this later
-pprVecFormat :: VecFormat -> SDoc
-pprVecFormat _ = empty
-
-pprLength :: Length -> SDoc
-pprLength 4 = ptext $ sLit "4"
-pprLength 8 = ptext $ sLit "8"
-pprLength _ = panic "This length of the vector is not supported currently"
-
-pprWidth :: Width -> SDoc
-pprWidth w
-  = ptext $ case w of
-              W8   -> sLit "8"
-              W16  -> sLit "16"
-              W32  -> sLit "32"
-              W64  -> sLit "64"
-              W80  -> sLit "80"
-              W128 -> sLit "128"
-              W256 -> sLit "256"
-              W512 -> sLit "512"
 
 pprCond :: Cond -> SDoc
 pprCond c
@@ -777,13 +753,13 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 -- Vector Instructions
 
 pprInstr (VADDPS format op1 op2)
-  = pprVecFormatOpOp (sLit "vaddps") format op1 op2
+  = pprFormatOpOp (sLit "vaddps") format op1 op2
 pprInstr (VBROADCASTSS format from to)
-  = pprVecFormatAddrReg (sLit "vbroadcastss") format from to
+  = pprFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
-  = pprVecFormatOpOp (sLit "vmovups") format from to
+  = pprFormatOpOp (sLit "vmovups") format from to
 pprInstr (VPXOR format s1 s2 dst)
-  = pprVecFormatRegRegReg (sLit "vpxor") format s1 s2 dst
+  = pprFormatRegRegReg (sLit "vpxor") format s1 s2 dst
 pprInstr (VEXTRACTPS format offset from to)
   = pprExtractFloat (sLit "vextractps") format offset from to
 
@@ -1173,12 +1149,6 @@ pprOperand f (OpReg r)   = pprReg f r
 pprOperand _ (OpImm i)   = pprDollImm i
 pprOperand _ (OpAddr ea) = pprAddr ea
 
-pprVecOperand :: VecFormat -> Operand -> SDoc
-pprVecOperand f (OpReg r)  = pprVecReg f r
-pprVecOperand _ (OpAddr ea) = pprAddr ea
-pprVecOperand _ _
-  = panic "Currently supported vector operations have register operands only"
-
 pprMnemonic_  :: LitString -> SDoc
 pprMnemonic_ name =
    char '\t' <> ptext name <> space
@@ -1187,10 +1157,6 @@ pprMnemonic_ name =
 pprMnemonic  :: LitString -> Format -> SDoc
 pprMnemonic name format =
    char '\t' <> ptext name <> pprFormat format <> space
-
-pprVecMnemonic :: LitString -> VecFormat -> SDoc
-pprVecMnemonic name format =
-   char '\t' <> ptext name <> pprVecFormat format <> space
 
 
 pprFormatImmOp :: LitString -> Format -> Imm -> Operand -> SDoc
@@ -1255,45 +1221,15 @@ pprFormatRegReg name format reg1 reg2
         pprReg format reg2
     ]
 
---TODO: Rewrite this in terms of a single Format
-pprVecFormatOpOp :: LitString -> VecFormat -> Operand -> Operand -> SDoc
-pprVecFormatOpOp name format op1 op2
-  = hcat [
-        pprVecMnemonic name format,
-        pprOperand FF32 op1,
-        comma,
-        pprVecOperand undefined op2
-    ]
-
-pprVecFormatOpReg :: LitString -> VecFormat -> Operand -> Reg -> SDoc
-pprVecFormatOpReg name format op1 reg2
-  = hcat [
-        pprVecMnemonic name format,
-        pprOperand FF32 op1,
-        comma,
-        pprVecReg format reg2
-    ]
-
-pprVecFormatRegRegReg :: LitString -> VecFormat -> Reg -> Reg -> Reg -> SDoc
-pprVecFormatRegRegReg name format reg1 reg2 reg3
-  = hcat [
-        pprVecMnemonic name format,
-        pprVecReg format reg1,
-        comma,
-        pprVecReg format reg2,
-        comma,
-        pprVecReg format reg3
-    ]
-
-pprExtractFloat :: LitString -> VecFormat -> Operand -> Reg -> Operand -> SDoc
+pprExtractFloat :: LitString -> Format -> Operand -> Reg -> Operand -> SDoc
 pprExtractFloat name format off reg1 op2
   = hcat [
-        pprVecMnemonic name format,
-        pprOperand undefined off,
+        pprMnemonic name format,
+        pprOperand format off,
         comma,
-        pprVecReg format reg1,
+        pprReg format reg1,
         comma,
-        pprOperand FF32 op2
+        pprOperand format op2
     ]
 
 pprRegReg :: LitString -> Reg -> Reg -> SDoc
@@ -1315,16 +1251,6 @@ pprFormatOpReg name format op1 reg2
         pprOperand format op1,
         comma,
         pprReg (archWordFormat (target32Bit platform)) reg2
-    ]
-
-pprVecFormatAddrReg :: LitString -> VecFormat -> AddrMode -> Reg -> SDoc
-pprVecFormatAddrReg name format op1 reg2
-  = sdocWithPlatform $ \_ ->
-    hcat [
-        pprVecMnemonic name format,
-        pprAddr op1,
-        comma,
-        pprVecReg format reg2
     ]
 
 pprCondOpReg :: LitString -> Format -> Cond -> Operand -> Reg -> SDoc

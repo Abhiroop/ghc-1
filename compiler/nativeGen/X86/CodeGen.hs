@@ -200,20 +200,18 @@ stmtToInstrs stmt = do
     CmmAssign reg src
       | isFloatType ty         -> assignReg_FltCode format reg src
       | is32Bit && isWord64 ty -> assignReg_I64Code      reg src
-      | isVecType ty           -> assignReg_VecCode vecformat reg src
+      | isVecType ty           -> assignReg_VecCode format reg src
       | otherwise              -> assignReg_IntCode format reg src
         where ty = cmmRegType dflags reg
               format = cmmTypeFormat ty
-              vecformat = cmmVecTypeFormat ty
 
     CmmStore addr src
       | isFloatType ty         -> assignMem_FltCode format addr src
       | is32Bit && isWord64 ty -> assignMem_I64Code      addr src
-      | isVecType ty           -> assignMem_VecCode vecformat addr src
+      | isVecType ty           -> assignMem_VecCode format addr src
       | otherwise              -> assignMem_IntCode format addr src
         where ty = cmmExprType dflags src
               format = cmmTypeFormat ty
-              vecformat = cmmVecTypeFormat ty
 
     CmmUnsafeForeignCall target result_regs args
        -> genCCall dflags is32Bit target result_regs args
@@ -276,18 +274,10 @@ data ChildCode64
 data Register
         = Fixed Format Reg InstrBlock
         | Any   Format (Reg -> InstrBlock)
-        | FixedV VecFormat Reg InstrBlock
-        | AnyV  VecFormat (Reg -> InstrBlock)
-
-        -- The FixedV and AnyV constructors are added solely to
-        -- capture the VecFormat datatype instead of Format
 
 swizzleRegisterRep :: Register -> Format -> Register
 swizzleRegisterRep (Fixed _ reg code) format = Fixed format reg code
 swizzleRegisterRep (Any _ codefn)     format = Any   format codefn
-swizzleRegisterRep _ _ = pprPanic (unlines ["swizzleRegisterRep not",
-                                            "implemented for vectors"])
-                         empty
 
 
 -- | Grab the Reg for a CmmReg
@@ -307,12 +297,10 @@ getRegisterReg platform _ (CmmGlobal mid)
         -- ones which map to a real machine register on this
         -- platform.  Hence ...
 
--- Created a new function instead of reusing getRegisterReg
--- only to pass VecFormat which might be later useful for
--- the register allocator
-getVecRegisterReg :: Platform -> Bool -> VecFormat -> CmmReg -> Reg
+
+getVecRegisterReg :: Platform -> Bool -> Format -> CmmReg -> Reg
 getVecRegisterReg _ use_avx format (CmmLocal (LocalReg u pk))
-  | isVecType pk && use_avx = RegVirtual (mkVirtualVecReg u format)
+  | isVecType pk && use_avx = RegVirtual (mkVirtualReg u format)
   | otherwise               = pprPanic (unlines ["avx flag is not enabled" ,
                                                 "or this is not a vector register"])
                               (ppr pk)
@@ -380,7 +368,6 @@ getSomeReg expr = do
         return (tmp, code tmp)
     Fixed _ reg code ->
         return (reg, code)
-    _ -> pprPanic "getSomeReg not implemented for vectors" empty
 
 
 assignMem_I64Code :: CmmExpr -> CmmExpr -> NatM InstrBlock
@@ -539,9 +526,9 @@ getRegister' dflags is32Bit (CmmReg reg)
                  else return (standardRegister cmmregtype use_avx use_sse2)
   where
     vectorRegister crt ua
-      | ua = let vecfmt = cmmVecTypeFormat crt
+      | ua = let vecfmt = cmmTypeFormat crt
                  platform = targetPlatform dflags
-              in (FixedV vecfmt
+              in (Fixed vecfmt
                   (getVecRegisterReg platform ua vecfmt reg) nilOL)
       | otherwise = pprPanic
                     "only avx instructions supported currently" (ppr crt)
@@ -675,9 +662,9 @@ getRegister' _ _ (CmmMachOp mop [(CmmLit lit@(CmmFloat _ w)),_]) = do
   case mop of
     MO_VF_Insert len wid
       | avx -> let f = VecFormat len FmtFloat wid
-                in return $ AnyV f (\r ->
-                                      code `snocOL`
-                                      (VBROADCASTSS f addr r))
+                in return $ Any f (\r ->
+                                     code `snocOL`
+                                     (VBROADCASTSS f addr r))
       | otherwise -> pprPanic "avx flag not enabled" empty
     _ -> needLlvm
 
@@ -951,13 +938,9 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     --     with a LEA, e.g. `(x + offset) + (y << shift)`.
 
     -------------------
-    -- Experimental---
+    -- Vector operations---
     vector_float_add :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
-    vector_float_add 8 W32 x y =
-      let fmt = VecFormat 8 FmtFloat W32
-       in genVectorTrivialCode fmt (VADDPS fmt) x y
-    vector_float_add _ _ _ _ = undefined -- TODO: Remove this
-    -- Add Other vector sizes and cases.
+    vector_float_add _ _ _ _ = panic "addition not implemented"
 
     --------------------
     -- NOTE:
@@ -982,7 +965,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           code dst
             = (unitOL (VEXTRACTPS format (OpImm imm) r (OpAddr addr))) `snocOL`
               (VMOVUPS format (OpAddr addr) (OpReg dst))
-      return (AnyV format code)
+      return (Any format code)
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
     --------------------
@@ -1030,14 +1013,14 @@ getRegister' _ _ (CmmLoad mem pk)
   | isVecType pk = do
       use_avx <- avxEnabled
       Amode addr mem_code <- getAmode mem
-      let format = cmmVecTypeFormat pk
+      let format = cmmTypeFormat pk
           code dst
             | use_avx = mem_code `snocOL`
                         VMOVUPS format (OpAddr addr) (OpReg dst)
             | otherwise = pprPanic (unlines ["avx flag not enabled",
                                             "for loading to "])
                           (ppr pk)
-      return (AnyV format code)
+      return (Any format code)
 
 getRegister' _ _ (CmmLoad mem pk)
   | isFloatType pk
@@ -1138,12 +1121,9 @@ getAnyReg expr = do
   anyReg r
 
 anyReg :: Register -> NatM (Reg -> InstrBlock)
-anyReg (AnyV _ code)          = return code
 anyReg (Any _ code)           = return code
 anyReg (Fixed rep reg fcode)
   = return (\dst -> fcode `snocOL` reg2reg rep reg dst)
-anyReg (FixedV rep reg fcode)
-  = return (\dst -> fcode `snocOL` vecreg2reg rep reg dst)
 -- A bit like getSomeReg, but we want a reg that can be byte-addressed.
 -- Fixed registers might not be byte-addressable, so we make sure we've
 -- got a temporary, inserting an extra reg copy if necessary.
@@ -1164,7 +1144,6 @@ getByteReg expr = do
                     -- ToDo: could optimise slightly by checking for
                     -- byte-addressable real registers, but that will
                     -- happen very rarely if at all.
-                _ -> pprPanic "getByteReg not implemented for vectors" empty
       else getSomeReg expr -- all regs are byte-addressable on x86_64
 
 -- Another variant: this time we want the result in a register that cannot
@@ -1185,20 +1164,12 @@ getNonClobberedReg expr = do
                 return (tmp, code `snocOL` reg2reg rep reg tmp)
         | otherwise ->
                 return (reg, code)
-    AnyV rep code -> do
-        tmp <- getNewVecRegNat rep
-        return (tmp, code tmp)
-    -- SIMD registers are never clobbered
-    -- see instrClobberedRegs function for clobbered registers
-    FixedV _ reg code -> return (reg, code)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
+reg2reg format@(VecFormat {}) src dst = VMOVUPS format (OpReg src) (OpReg dst)
 reg2reg format src dst
   | format == FF80 = GMOV src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
-
-vecreg2reg :: VecFormat -> Reg -> Reg -> Instr
-vecreg2reg format src dst = VMOVUPS format (OpReg src) (OpReg dst)
 
 --------------------------------------------------------------------------------
 getAmode :: CmmExpr -> NatM Amode
@@ -1406,9 +1377,6 @@ addAlignmentCheck align reg =
     case reg of
       Fixed fmt reg code -> Fixed fmt reg (code `appOL` check fmt reg)
       Any fmt f          -> Any fmt (\reg -> f reg `appOL` check fmt reg)
-      _                  -> pprPanic (unlines ["alignment check not",
-                                               "implemented for vectors"])
-                            empty
   where
     check :: Format -> Reg -> InstrBlock
     check fmt reg =
@@ -1649,8 +1617,8 @@ assignReg_IntCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 assignMem_FltCode :: Format -> CmmExpr -> CmmExpr -> NatM InstrBlock
 assignReg_FltCode :: Format -> CmmReg  -> CmmExpr -> NatM InstrBlock
 
-assignMem_VecCode :: VecFormat -> CmmExpr -> CmmExpr -> NatM InstrBlock
-assignReg_VecCode :: VecFormat -> CmmReg -> CmmExpr -> NatM InstrBlock
+assignMem_VecCode :: Format -> CmmExpr -> CmmExpr -> NatM InstrBlock
+assignReg_VecCode :: Format -> CmmReg -> CmmExpr -> NatM InstrBlock
 -- integer assignment to memory
 
 -- specific case of adding/subtracting an integer to a particular address.
@@ -1720,6 +1688,14 @@ assignMem_FltCode pk addr src = do
                             else GST pk src_reg addr
   return code
 
+-- Floating point assignment to a register/temporary
+assignReg_FltCode _ reg src = do
+  use_sse2 <- sse2Enabled
+  src_code <- getAnyReg src
+  dflags <- getDynFlags
+  let platform = targetPlatform dflags
+  return (src_code (getRegisterReg platform use_sse2 reg))
+
 assignMem_VecCode pk addr src = do
   (src_reg, src_code) <- getNonClobberedReg src
   Amode addr addr_code <- getAmode addr
@@ -1730,14 +1706,6 @@ assignMem_VecCode pk addr src = do
                            (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
              | otherwise = panic "avx flag not enabled"
   return code
-
--- Floating point assignment to a register/temporary
-assignReg_FltCode _ reg src = do
-  use_sse2 <- sse2Enabled
-  src_code <- getAnyReg src
-  dflags <- getDynFlags
-  let platform = targetPlatform dflags
-  return (src_code (getRegisterReg platform use_sse2 reg))
 
 assignReg_VecCode format reg src = do
   use_avx <- avxEnabled
@@ -3190,23 +3158,6 @@ trivialCode' is32Bit width _ (Just revinstr) (CmmLit lit_a) b
 trivialCode' _ width instr _ a b
   = genTrivialCode (intFormat width) instr a b
 
--- An experimental Vector trivial code genrator. This does not handle the case of the clobbered register. More comments below.
-genVectorTrivialCode :: VecFormat -> (Operand -> Operand -> Instr)
-               -> CmmExpr -> CmmExpr -> NatM Register
-genVectorTrivialCode rep instr a b = do
-  (b_op, b_code) <- getNonClobberedOperand b
-  a_code <- getAnyReg a
-  let
-     -- Currently ignoring the case of (dst := dst `op` src). Assuming that
-     --  a temporary register is not needed. As the register size of an
-     -- AVX2 instruction is 256 bits, the logic for a temporary register
-     -- might be different
-     code dst =
-                b_code `appOL`
-                a_code dst `snocOL`
-                instr b_op (OpReg dst)
-  return (AnyV rep code)
-
 -- This is re-used for floating pt instructions too.
 genTrivialCode :: Format -> (Operand -> Operand -> Instr)
                -> CmmExpr -> CmmExpr -> NatM Register
@@ -3353,13 +3304,14 @@ sse2NegCode w x = do
   -- This is how gcc does it, so it can't be that bad:
   let
     const = case fmt of
-      FF32 -> CmmInt 0x80000000 W32
-      FF64 -> CmmInt 0x8000000000000000 W64
-      x@II8  -> wrongFmt x
-      x@II16 -> wrongFmt x
-      x@II32 -> wrongFmt x
-      x@II64 -> wrongFmt x
-      x@FF80 -> wrongFmt x
+      FF32           -> CmmInt 0x80000000 W32
+      FF64           -> CmmInt 0x8000000000000000 W64
+      x@II8          -> wrongFmt x
+      x@II16         -> wrongFmt x
+      x@II32         -> wrongFmt x
+      x@II64         -> wrongFmt x
+      x@FF80         -> wrongFmt x
+      x@VecFormat {} -> wrongFmt x
       where
         wrongFmt x = panic $ "sse2NegCode: " ++ show x
   Amode amode amode_code <- memConstant (widthInBytes w) const

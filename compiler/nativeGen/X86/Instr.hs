@@ -219,16 +219,16 @@ data Instr
 
         -- Vector Instructions
         -- Broadcast
-        | VBROADCASTSS VecFormat AddrMode Reg
+        | VBROADCASTSS Format AddrMode Reg
 
-        | VMOVUPS      VecFormat Operand Operand
+        | VMOVUPS      Format Operand Operand
 
-        | VPXOR        VecFormat Reg Reg Reg
+        | VPXOR        Format Reg Reg Reg
 
-        | VEXTRACTPS   VecFormat Operand Reg Operand
+        | VEXTRACTPS   Format Operand Reg Operand
         -- Arithmetic
         -- TODO: please change the Operand to Reg
-        | VADDPS      VecFormat Operand Operand
+        | VADDPS       Format Operand Operand
 
         --
         -- Int Arithmetic, where the effects on the condition register
@@ -684,7 +684,8 @@ x86_patchRegsOfInstr instr env
     VBROADCASTSS fmt src dst   -> VBROADCASTSS fmt (lookupAddr src) (env dst)
     VMOVUPS      fmt src dst   -> VMOVUPS fmt (patchOp src) (patchOp dst)
     VPXOR        fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
-    VEXTRACTPS   fmt off src dst -> VEXTRACTPS fmt (patchOp off) (env src) (patchOp dst)
+    VEXTRACTPS   fmt off src dst
+      -> VEXTRACTPS fmt (patchOp off) (env src) (patchOp dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where

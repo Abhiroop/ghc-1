@@ -10,16 +10,14 @@
 --
 module Format (
     Format(..),
-    VecFormat(..),
     ScalarFormat(..),
     intFormat,
     floatFormat,
     isFloatFormat,
+    isVecFormat,
     cmmTypeFormat,
-    cmmVecTypeFormat,
     formatToWidth,
-    formatInBytes,
-    vecFormatToWidth
+    formatInBytes
 )
 
 where
@@ -52,11 +50,8 @@ data Format
         | FF32
         | FF64
         | FF80
+        | VecFormat Length ScalarFormat Width
         deriving (Show, Eq)
-
-data VecFormat = VecFormat { vecLength :: Length
-                           , vecFormat :: ScalarFormat
-                           , vecWidth  :: Width}
 
 data ScalarFormat = FmtInt8
                   | FmtInt16
@@ -98,22 +93,34 @@ isFloatFormat format
         FF80    -> True
         _       -> False
 
+-- | Check if a format represents a vector
+isVecFormat :: Format -> Bool
+isVecFormat (VecFormat {}) = True
+isVecFormat _              = False
 
 -- | Convert a Cmm type to a Format.
 cmmTypeFormat :: CmmType -> Format
 cmmTypeFormat ty
         | isFloatType ty        = floatFormat (typeWidth ty)
+        | isVecType ty          = generateVecFormat ty
         | otherwise             = intFormat (typeWidth ty)
 
--- | Convert a Cmm type to a VecFormat
-cmmVecTypeFormat :: CmmType -> VecFormat
-cmmVecTypeFormat ty
-  | isVecType ty = let w = typeWidth ty
-                       l = Cmm.vecLength ty
-                    in if isFloatType (vecElemType ty)
-                       then VecFormat l FmtFloat w
-                       else VecFormat l FmtInt32 w
-  | otherwise    = pprPanic "incorrect function call for CmmType" (ppr ty)
+generateVecFormat :: CmmType -> Format
+generateVecFormat ty =
+  let w      = typeWidth ty
+      l      = Cmm.vecLength ty
+      elemTy = vecElemType ty
+   in if isFloatType elemTy
+      then case typeWidth elemTy of
+             W32 -> VecFormat l FmtFloat  w
+             W64 -> VecFormat l FmtDouble w
+             _   -> pprPanic "Incorrect vector element width" (ppr elemTy)
+      else case typeWidth elemTy of
+             W8  -> VecFormat l FmtInt8  w
+             W16 -> VecFormat l FmtInt16 w
+             W32 -> VecFormat l FmtInt32 w
+             W64 -> VecFormat l FmtInt64 w
+             _   -> pprPanic "Incorrect vector element width" (ppr elemTy)
 
 -- | Get the Width of a Format.
 formatToWidth :: Format -> Width
@@ -126,10 +133,10 @@ formatToWidth format
         FF32            -> W32
         FF64            -> W64
         FF80            -> W80
+        VecFormat _ _ W128 -> W128
+        VecFormat _ _ W256 -> W256
+        VecFormat _ _ W512 -> W512
+        _ -> panic "Format doesn't exist"
 
 formatInBytes :: Format -> Int
 formatInBytes = widthInBytes . formatToWidth
-
--- | Get the width of one individual element of the vector.
-vecFormatToWidth :: VecFormat -> Width
-vecFormatToWidth (VecFormat l _ w) = widthFromBytes (widthInBytes w `div` l)
