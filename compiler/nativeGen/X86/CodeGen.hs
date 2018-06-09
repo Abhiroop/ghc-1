@@ -307,7 +307,6 @@ getRegisterReg platform _ (CmmGlobal mid)
         -- ones which map to a real machine register on this
         -- platform.  Hence ...
 
--- TODO: The otherwise case needs to be taken care of;
 -- Created a new function instead of reusing getRegisterReg
 -- only to pass VecFormat which might be later useful for
 -- the register allocator
@@ -1027,6 +1026,18 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
 
            return (Fixed format result code)
 
+getRegister' _ _ (CmmLoad mem pk)
+  | isVecType pk = do
+      use_avx <- avxEnabled
+      Amode addr mem_code <- getAmode mem
+      let format = cmmVecTypeFormat pk
+          code dst
+            | use_avx = mem_code `snocOL`
+                        VMOVUPS format (OpAddr addr) (OpReg dst)
+            | otherwise = pprPanic (unlines ["avx flag not enabled",
+                                            "for loading to "])
+                          (ppr pk)
+      return (AnyV format code)
 
 getRegister' _ _ (CmmLoad mem pk)
   | isFloatType pk
@@ -1179,7 +1190,7 @@ getNonClobberedReg expr = do
         return (tmp, code tmp)
     -- SIMD registers are never clobbered
     -- see instrClobberedRegs function for clobbered registers
-    FixedV rep reg code -> return (reg, code)
+    FixedV _ reg code -> return (reg, code)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
 reg2reg format src dst
@@ -1714,9 +1725,10 @@ assignMem_VecCode pk addr src = do
   Amode addr addr_code <- getAmode addr
   use_avx <- avxEnabled
   let
-        code = src_code `appOL`
-               addr_code `snocOL`
-               (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
+        code | use_avx   = src_code `appOL`
+                           addr_code `snocOL`
+                           (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
+             | otherwise = panic "avx flag not enabled"
   return code
 
 -- Floating point assignment to a register/temporary
@@ -1729,7 +1741,7 @@ assignReg_FltCode _ reg src = do
 
 assignReg_VecCode format reg src = do
   use_avx <- avxEnabled
-  src_code <- getAnyReg src -- NatM (Reg -> InstrBlock)
+  src_code <- getAnyReg src
   dflags <- getDynFlags
   let platform = targetPlatform dflags
   return (src_code (getVecRegisterReg platform use_avx format reg))

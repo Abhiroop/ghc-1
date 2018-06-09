@@ -22,6 +22,7 @@ test('cgrun018', normal, compile_and_run, [''])
 test('cgrun019', normal, compile_and_run, [''])
 test('cgrun020', normal, compile_and_run, [''])
 test('cgrun077', normal, compile_and_run, [''])
+test('cgrun078', normal, compile_and_run, [''])
 
 # cgrun021 does some GC, so let's use it to test GC parameters
 test('cgrun021', extra_ways(['nursery_chunks']), compile_and_run, [''])
