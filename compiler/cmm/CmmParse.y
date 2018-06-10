@@ -974,8 +974,6 @@ machOps = listToUFM $
         ( "fgt",        MO_F_Gt ),
         ( "flt",        MO_F_Lt ),
 
-        ( "vfadd8",      MO_VF_Add 8 ),
-
         ( "lobits8",  flip MO_UU_Conv W8  ),
         ( "lobits16", flip MO_UU_Conv W16 ),
         ( "lobits32", flip MO_UU_Conv W32 ),

@@ -1913,6 +1913,8 @@ genCCall' dflags gcp target dest_regs args
                           FF64 -> (2, 1, 8, fprs)
                           II64 -> panic "genCCall' passArguments II64"
                           FF80 -> panic "genCCall' passArguments FF80"
+                          VecFormat {}
+                               -> panic "genCCall' passArguments vector format"
                       GCPDarwin ->
                           case cmmTypeFormat rep of
                           II8  -> (1, 0, 4, gprs)
@@ -1925,6 +1927,8 @@ genCCall' dflags gcp target dest_regs args
                           FF64 -> (2, 1, 8, fprs)
                           II64 -> panic "genCCall' passArguments II64"
                           FF80 -> panic "genCCall' passArguments FF80"
+                          VecFormat {}
+                               -> panic "genCCall' passArguments vector format"
                       GCPLinux ->
                           case cmmTypeFormat rep of
                           II8  -> (1, 0, 4, gprs)
@@ -1935,6 +1939,8 @@ genCCall' dflags gcp target dest_regs args
                           FF64 -> (0, 1, 8, fprs)
                           II64 -> panic "genCCall' passArguments II64"
                           FF80 -> panic "genCCall' passArguments FF80"
+                          VecFormat {}
+                               -> panic "genCCall' passArguments vector format"
                       GCPLinux64ELF _ ->
                           case cmmTypeFormat rep of
                           II8  -> (1, 0, 8, gprs)
@@ -1947,6 +1953,8 @@ genCCall' dflags gcp target dest_regs args
                           FF32 -> (1, 1, 8, fprs)
                           FF64 -> (1, 1, 8, fprs)
                           FF80 -> panic "genCCall' passArguments FF80"
+                          VecFormat {}
+                               -> panic "genCCall' passArguments vector format"
 
         moveResult reduceToFF32 =
             case dest_regs of

@@ -301,8 +301,9 @@ getRegisterReg platform _ (CmmGlobal mid)
 getVecRegisterReg :: Platform -> Bool -> Format -> CmmReg -> Reg
 getVecRegisterReg _ use_avx format (CmmLocal (LocalReg u pk))
   | isVecType pk && use_avx = RegVirtual (mkVirtualReg u format)
-  | otherwise               = pprPanic (unlines ["avx flag is not enabled" ,
-                                                "or this is not a vector register"])
+  | otherwise               = pprPanic
+                              (unlines ["avx flag is not enabled" ,
+                                        "or this is not a vector register"])
                               (ppr pk)
 getVecRegisterReg platform use_avx _ c = getRegisterReg platform use_avx c
 
@@ -827,10 +828,6 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_And rep -> triv_op rep AND
       MO_Or  rep -> triv_op rep OR
       MO_Xor rep -> triv_op rep XOR
-
-      -- Experimental Vector Operations
-      MO_VF_Add l w  | avx       -> vector_float_add l w x y
-                     | otherwise -> needLlvm
       -----------------
         {- Shift ops on x86s have constraints on their source, it
            either has to be Imm, CL or 1
@@ -851,7 +848,10 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VF_Insert {}  -> needLlvm
 
       MO_VF_Extract l w | avx       -> vector_float_unpack l w x y
-                        | otherwise -> needLlvm
+                        | otherwise -> panic "avx flag not enabled"
+
+      MO_VF_Add l w | avx       -> vector_float_add l w x y
+                    | otherwise -> panic "avx flag not enabled"
 
       MO_VF_Sub {}     -> needLlvm
       MO_VF_Mul {}     -> needLlvm
@@ -937,11 +937,19 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     -- TODO: There are other interesting patterns we want to replace
     --     with a LEA, e.g. `(x + offset) + (y << shift)`.
 
-    -------------------
+    -----------------------
     -- Vector operations---
     vector_float_add :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
-    vector_float_add _ _ _ _ = panic "addition not implemented"
-
+    vector_float_add l w (CmmReg r1) (CmmReg r2) = do
+      dflags <- getDynFlags
+      let format   = VecFormat l FmtFloat w
+          platform = targetPlatform dflags
+          reg1     = getVecRegisterReg platform True format r1
+          reg2     = getVecRegisterReg platform True format r2
+          code dst = unitOL (VADDPS format (OpReg reg1) reg2 dst)
+      return (Any format code)
+    vector_float_add _ _ c1 c2
+      = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
     --------------------
     -- NOTE:
     -- (VEXTRACTPS $0, %xmm0, %xmm1) is not allowed,
@@ -968,7 +976,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       return (Any format code)
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
-    --------------------
+    -----------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
     sub_code rep x (CmmLit (CmmInt y _))
         | is32BitInteger (-y) = add_int rep x (-y)

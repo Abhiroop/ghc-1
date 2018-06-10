@@ -752,8 +752,8 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 
 -- Vector Instructions
 
-pprInstr (VADDPS format op1 op2)
-  = pprFormatOpOp (sLit "vaddps") format op1 op2
+pprInstr (VADDPS format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vaddps") format s1 s2 dst
 pprInstr (VBROADCASTSS format from to)
   = pprFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
@@ -1251,6 +1251,17 @@ pprFormatOpReg name format op1 reg2
         pprOperand format op1,
         comma,
         pprReg (archWordFormat (target32Bit platform)) reg2
+    ]
+
+pprFormatOpRegReg :: LitString -> Format -> Operand -> Reg -> Reg -> SDoc
+pprFormatOpRegReg name format op1 reg2 reg3
+  = hcat [
+        pprMnemonic name format,
+        pprOperand format op1,
+        comma,
+        pprReg format reg2,
+        comma,
+        pprReg format reg3
     ]
 
 pprCondOpReg :: LitString -> Format -> Cond -> Operand -> Reg -> SDoc

@@ -107,19 +107,18 @@ cmmTypeFormat ty
 
 generateVecFormat :: CmmType -> Format
 generateVecFormat ty =
-  let w      = typeWidth ty
-      l      = Cmm.vecLength ty
+  let l      = vecLength ty
       elemTy = vecElemType ty
    in if isFloatType elemTy
       then case typeWidth elemTy of
-             W32 -> VecFormat l FmtFloat  w
-             W64 -> VecFormat l FmtDouble w
+             W32 -> VecFormat l FmtFloat  W32
+             W64 -> VecFormat l FmtDouble W64
              _   -> pprPanic "Incorrect vector element width" (ppr elemTy)
       else case typeWidth elemTy of
-             W8  -> VecFormat l FmtInt8  w
-             W16 -> VecFormat l FmtInt16 w
-             W32 -> VecFormat l FmtInt32 w
-             W64 -> VecFormat l FmtInt64 w
+             W8  -> VecFormat l FmtInt8  W8
+             W16 -> VecFormat l FmtInt16 W16
+             W32 -> VecFormat l FmtInt32 W32
+             W64 -> VecFormat l FmtInt64 W64
              _   -> pprPanic "Incorrect vector element width" (ppr elemTy)
 
 -- | Get the Width of a Format.
@@ -133,10 +132,11 @@ formatToWidth format
         FF32            -> W32
         FF64            -> W64
         FF80            -> W80
-        VecFormat _ _ W128 -> W128
-        VecFormat _ _ W256 -> W256
-        VecFormat _ _ W512 -> W512
-        _ -> panic "Format doesn't exist"
+        vecFormat       -> vectorWidth vecFormat
 
 formatInBytes :: Format -> Int
 formatInBytes = widthInBytes . formatToWidth
+
+vectorWidth :: Format -> Width
+vectorWidth (VecFormat l _ w) = widthFromBytes (l*widthInBytes w)
+vectorWidth _ = panic "Input is not a vector"

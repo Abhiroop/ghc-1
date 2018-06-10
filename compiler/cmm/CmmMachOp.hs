@@ -502,15 +502,18 @@ machOpArgReps dflags op =
     MO_VU_Rem  _ r      -> [r,r]
 
     MO_VF_Insert  _ r   -> [r,r]
-    MO_VF_Extract l r   -> [typeWidth (vec l (cmmFloat r)),r]
+    MO_VF_Extract l r   -> [vecwidth l r, r]
 
-    MO_VF_Add  _ r      -> [r,r]
-    MO_VF_Sub  _ r      -> [r,r]
-    MO_VF_Mul  _ r      -> [r,r]
-    MO_VF_Quot _ r      -> [r,r]
-    MO_VF_Neg  _ r      -> [r]
+    -- NOTE: The below is owing to the fact that floats use the SSE registers
+    MO_VF_Add  l w      -> [vecwidth l w, vecwidth l w]
+    MO_VF_Sub  l w      -> [vecwidth l w, vecwidth l w]
+    MO_VF_Mul  l w      -> [vecwidth l w, vecwidth l w]
+    MO_VF_Quot l w      -> [vecwidth l w, vecwidth l w]
+    MO_VF_Neg  l w      -> [vecwidth l w]
 
     MO_AlignmentCheck _ r -> [r]
+    where
+      vecwidth l w = widthFromBytes (l*widthInBytes w)
 
 -----------------------------------------------------------------------------
 -- CallishMachOp
