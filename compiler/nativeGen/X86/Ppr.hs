@@ -754,6 +754,10 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 
 pprInstr (VADDPS format s1 s2 dst)
   = pprFormatOpRegReg (sLit "vaddps") format s1 s2 dst
+pprInstr (VSUBPS format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vsubps") format s1 s2 dst
+pprInstr (VMULPS format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vmulps") format s1 s2 dst
 pprInstr (VBROADCASTSS format from to)
   = pprFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)

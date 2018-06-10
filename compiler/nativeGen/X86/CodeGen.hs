@@ -79,6 +79,8 @@ import Data.Word
 
 import qualified Data.Map as M
 
+data VectorArithInstns = VADD | VSUB | VMUL
+
 is32BitPlatform :: NatM Bool
 is32BitPlatform = do
     dflags <- getDynFlags
@@ -850,11 +852,15 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VF_Extract l w | avx       -> vector_float_unpack l w x y
                         | otherwise -> panic "avx flag not enabled"
 
-      MO_VF_Add l w | avx       -> vector_float_add l w x y
+      MO_VF_Add l w | avx       -> vector_float_op VADD l w x y
                     | otherwise -> panic "avx flag not enabled"
 
-      MO_VF_Sub {}     -> needLlvm
-      MO_VF_Mul {}     -> needLlvm
+      MO_VF_Sub l w | avx       -> vector_float_op VSUB l w x y
+                    | otherwise -> panic "avx flag not enabled"
+
+      MO_VF_Mul l w | avx       -> vector_float_op VMUL l w x y
+                    | otherwise -> panic "avx flag not enabled"
+
       MO_VF_Quot {}    -> needLlvm
       MO_VF_Neg {}     -> needLlvm
 
@@ -939,16 +945,25 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
 
     -----------------------
     -- Vector operations---
-    vector_float_add :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
-    vector_float_add l w (CmmReg r1) (CmmReg r2) = do
+    vector_float_op :: VectorArithInstns
+                    -> Length
+                    -> Width
+                    -> CmmExpr
+                    -> CmmExpr
+                    -> NatM Register
+    vector_float_op op l w (CmmReg r1) (CmmReg r2) = do
       dflags <- getDynFlags
       let format   = VecFormat l FmtFloat w
           platform = targetPlatform dflags
           reg1     = getVecRegisterReg platform True format r1
           reg2     = getVecRegisterReg platform True format r2
-          code dst = unitOL (VADDPS format (OpReg reg1) reg2 dst)
+          code dst = case op of
+            -- opcode src2 src1 dst <==> dst = src1 `opcode` src2
+            VADD -> unitOL (VADDPS format (OpReg reg2) reg1 dst)
+            VSUB -> unitOL (VSUBPS format (OpReg reg2) reg1 dst)
+            VMUL -> unitOL (VMULPS format (OpReg reg2) reg1 dst)
       return (Any format code)
-    vector_float_add _ _ c1 c2
+    vector_float_op _ _ _ c1 c2
       = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
     --------------------
     -- NOTE:

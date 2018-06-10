@@ -370,6 +370,8 @@ data Instr
 
         -- Arithmetic
         | VADDPS       Format Operand Reg Reg
+        | VSUBPS       Format Operand Reg Reg
+        | VMULPS       Format Operand Reg Reg
 
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
@@ -500,6 +502,8 @@ x86_regUsageOfInstr platform instr
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
 
     VADDPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VSUBPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VMULPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
     _other              -> panic "regUsage: unrecognised instr"
  where
     -- # Definitions
@@ -690,6 +694,8 @@ x86_patchRegsOfInstr instr env
     VPXOR        fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
 
     VADDPS       fmt s1 s2 dst -> VADDPS fmt (patchOp s1) (env s2) (env dst)
+    VSUBPS       fmt s1 s2 dst -> VSUBPS fmt (patchOp s1) (env s2) (env dst)
+    VMULPS       fmt s1 s2 dst -> VMULPS fmt (patchOp s1) (env s2) (env dst)
 
     _other              -> panic "patchRegs: unrecognised instr"
 

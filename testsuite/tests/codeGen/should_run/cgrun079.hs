@@ -13,4 +13,7 @@ instance Show FloatX4 where
 
 
 main :: IO ()
-main = print (FX4# (plusFloatX4# (broadcastFloatX4# 1.3#) (broadcastFloatX4# 2.2#)))
+main = do
+  print (FX4# (plusFloatX4# (broadcastFloatX4# 1.3#) (broadcastFloatX4# 2.2#)))
+  print (FX4# (minusFloatX4# (broadcastFloatX4# 3.5#) (broadcastFloatX4# 2.2#)))
+  print (FX4# (timesFloatX4# (broadcastFloatX4# 2.4#) (broadcastFloatX4# 2.2#)))
