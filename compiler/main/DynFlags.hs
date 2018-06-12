@@ -152,6 +152,7 @@ module DynFlags (
         -- * SSE and AVX
         isSseEnabled,
         isSse2Enabled,
+        isSse4_1Enabled,
         isSse4_2Enabled,
         isBmiEnabled,
         isBmi2Enabled,
@@ -5524,6 +5525,9 @@ isSse2Enabled dflags = case platformArch (targetPlatform dflags) of
                   True
     ArchX86    -> sseVersion dflags >= Just SSE2
     _          -> False
+
+isSse4_1Enabled :: DynFlags -> Bool
+isSse4_1Enabled dflags = sseVersion dflags >= Just SSE4
 
 isSse4_2Enabled :: DynFlags -> Bool
 isSse4_2Enabled dflags = sseVersion dflags >= Just SSE42

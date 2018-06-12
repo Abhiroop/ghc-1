@@ -758,6 +758,8 @@ pprInstr (VSUBPS format s1 s2 dst)
   = pprFormatOpRegReg (sLit "vsubps") format s1 s2 dst
 pprInstr (VMULPS format s1 s2 dst)
   = pprFormatOpRegReg (sLit "vmulps") format s1 s2 dst
+pprInstr (VDIVPS format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vdivps") format s1 s2 dst
 pprInstr (VBROADCASTSS format from to)
   = pprFormatAddrReg (sLit "vbroadcastss") format from to
 pprInstr (VMOVUPS format from to)
@@ -765,7 +767,9 @@ pprInstr (VMOVUPS format from to)
 pprInstr (VPXOR format s1 s2 dst)
   = pprFormatRegRegReg (sLit "vpxor") format s1 s2 dst
 pprInstr (VEXTRACTPS format offset from to)
-  = pprExtractFloat (sLit "vextractps") format offset from to
+  = pprFormatOpRegOp (sLit "vextractps") format offset from to
+pprInstr (INSERTPS format offset addr dst)
+  = pprFormatOpAddrReg (sLit "insertps") format offset addr dst
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1225,8 +1229,19 @@ pprFormatRegReg name format reg1 reg2
         pprReg format reg2
     ]
 
-pprExtractFloat :: LitString -> Format -> Operand -> Reg -> Operand -> SDoc
-pprExtractFloat name format off reg1 op2
+pprFormatOpAddrReg :: LitString -> Format -> Operand -> AddrMode -> Reg -> SDoc
+pprFormatOpAddrReg name format off addr dst
+  = hcat [
+        pprMnemonic name format,
+        pprOperand format off,
+        comma,
+        pprAddr addr,
+        comma,
+        pprReg format dst
+    ]
+
+pprFormatOpRegOp :: LitString -> Format -> Operand -> Reg -> Operand -> SDoc
+pprFormatOpRegOp name format off reg1 op2
   = hcat [
         pprMnemonic name format,
         pprOperand format off,

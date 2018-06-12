@@ -79,7 +79,7 @@ import Data.Word
 
 import qualified Data.Map as M
 
-data VectorArithInstns = VADD | VSUB | VMUL
+data VectorArithInstns = VADD | VSUB | VMUL | VDIV
 
 is32BitPlatform :: NatM Bool
 is32BitPlatform = do
@@ -90,6 +90,11 @@ sse2Enabled :: NatM Bool
 sse2Enabled = do
   dflags <- getDynFlags
   return (isSse2Enabled dflags)
+
+sse4_1Enabled :: NatM Bool
+sse4_1Enabled = do
+  dflags <- getDynFlags
+  return (isSse4_1Enabled dflags)
 
 sse4_2Enabled :: NatM Bool
 sse4_2Enabled = do
@@ -658,19 +663,6 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
       return $ Any II64 (\dst -> unitOL $
         LEA II64 (OpAddr (ripRel (litToImm displacement))) (OpReg dst))
 
---ternary MachOps for broadcasts
-getRegister' _ _ (CmmMachOp mop [(CmmLit lit@(CmmFloat _ w)),_]) = do
-  avx <- avxEnabled
-  Amode addr code <- memConstant (widthInBytes w) lit
-  case mop of
-    MO_VF_Insert len wid
-      | avx -> let f = VecFormat len FmtFloat wid
-                in return $ Any f (\r ->
-                                     code `snocOL`
-                                     (VBROADCASTSS f addr r))
-      | otherwise -> pprPanic "avx flag not enabled" empty
-    _ -> needLlvm
-
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
     sse2 <- sse2Enabled
     case mop of
@@ -728,23 +720,24 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
       MO_FS_Conv from to -> coerceFP2Int from to x
       MO_SF_Conv from to -> coerceInt2FP from to x
 
-      MO_V_Insert {}   -> needLlvm
-      MO_V_Extract {}  -> needLlvm
-      MO_V_Add {}      -> needLlvm
-      MO_V_Sub {}      -> needLlvm
-      MO_V_Mul {}      -> needLlvm
-      MO_VS_Quot {}    -> needLlvm
-      MO_VS_Rem {}     -> needLlvm
-      MO_VS_Neg {}     -> needLlvm
-      MO_VU_Quot {}    -> needLlvm
-      MO_VU_Rem {}     -> needLlvm
-      MO_VF_Insert {}  -> needLlvm
-      MO_VF_Extract {} -> needLlvm
-      MO_VF_Add {}     -> needLlvm
-      MO_VF_Sub {}     -> needLlvm
-      MO_VF_Mul {}     -> needLlvm
-      MO_VF_Quot {}    -> needLlvm
-      MO_VF_Neg {}     -> needLlvm
+      MO_V_Insert {}      -> needLlvm
+      MO_V_Extract {}     -> needLlvm
+      MO_V_Add {}         -> needLlvm
+      MO_V_Sub {}         -> needLlvm
+      MO_V_Mul {}         -> needLlvm
+      MO_VS_Quot {}       -> needLlvm
+      MO_VS_Rem {}        -> needLlvm
+      MO_VS_Neg {}        -> needLlvm
+      MO_VU_Quot {}       -> needLlvm
+      MO_VU_Rem {}        -> needLlvm
+      MO_VF_Broadcast {}  -> needLlvm
+      MO_VF_Insert {}     -> needLlvm
+      MO_VF_Extract {}    -> needLlvm
+      MO_VF_Add {}        -> needLlvm
+      MO_VF_Sub {}        -> needLlvm
+      MO_VF_Mul {}        -> needLlvm
+      MO_VF_Quot {}       -> needLlvm
+      MO_VF_Neg {}        -> needLlvm
 
       _other -> pprPanic "getRegister" (pprMachOp mop)
    where
@@ -784,8 +777,9 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
 
 
 getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
-  sse2 <- sse2Enabled
-  avx  <- avxEnabled
+  sse4_1 <- sse4_1Enabled
+  sse2   <- sse2Enabled
+  avx    <- avxEnabled
   case mop of
       MO_F_Eq _ -> condFltReg is32Bit EQQ x y
       MO_F_Ne _ -> condFltReg is32Bit NE  x y
@@ -847,21 +841,27 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VS_Quot {}    -> needLlvm
       MO_VS_Rem {}     -> needLlvm
       MO_VS_Neg {}     -> needLlvm
-      MO_VF_Insert {}  -> needLlvm
 
-      MO_VF_Extract l w | avx       -> vector_float_unpack l w x y
-                        | otherwise -> panic "avx flag not enabled"
+      MO_VF_Broadcast l w | avx       -> vector_float_broadcast l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Add l w | avx       -> vector_float_op VADD l w x y
-                    | otherwise -> panic "avx flag not enabled"
+      MO_VF_Insert l w    | sse4_1    -> vector_float_pack l w x y
+                          | otherwise -> sorry "Please enable the -msse4 flag"
 
-      MO_VF_Sub l w | avx       -> vector_float_op VSUB l w x y
-                    | otherwise -> panic "avx flag not enabled"
+      MO_VF_Extract l w   | avx       -> vector_float_unpack l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Mul l w | avx       -> vector_float_op VMUL l w x y
-                    | otherwise -> panic "avx flag not enabled"
+      MO_VF_Add l w       | avx       -> vector_float_op VADD l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Quot {}    -> needLlvm
+      MO_VF_Sub l w       | avx       -> vector_float_op VSUB l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
+
+      MO_VF_Mul l w       | avx       -> vector_float_op VMUL l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
+
+      MO_VF_Quot l w      | avx       -> vector_float_op VDIV l w x y
+                          | otherwise -> sorry "Please enable the -mavx flag"
       MO_VF_Neg {}     -> needLlvm
 
       _other -> pprPanic "getRegister(x86) - binary CmmMachOp (1)" (pprMachOp mop)
@@ -962,6 +962,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
             VADD -> unitOL (VADDPS format (OpReg reg2) reg1 dst)
             VSUB -> unitOL (VSUBPS format (OpReg reg2) reg1 dst)
             VMUL -> unitOL (VMULPS format (OpReg reg2) reg1 dst)
+            VDIV -> unitOL (VDIVPS format (OpReg reg2) reg1 dst)
       return (Any format code)
     vector_float_op _ _ _ c1 c2
       = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
@@ -991,6 +992,29 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       return (Any format code)
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
+    -----------------------
+    vector_float_pack :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
+    vector_float_pack len wid (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
+      = do
+      Amode addr code <- memConstant (widthInBytes w) lit
+      let f   = VecFormat len FmtFloat wid
+          imm = litToImm offset
+       in return $ Any f (\r -> code `snocOL` (INSERTPS f (OpImm imm) addr r))
+    vector_float_pack _ _ c _
+      = pprPanic "Pack not supported for : " (ppr c)
+    -----------------------
+    vector_float_broadcast :: Length
+                           -> Width
+                           -> CmmExpr
+                           -> CmmExpr
+                           -> NatM Register
+    vector_float_broadcast len wid (CmmLit lit@(CmmFloat _ w)) _
+      = do
+      Amode addr code <- memConstant (widthInBytes w) lit
+      let f = VecFormat len FmtFloat wid
+       in return $ Any f (\r -> code `snocOL` (VBROADCASTSS f addr r))
+    vector_float_broadcast _ _ c _
+      = pprPanic "Broadcast not supported for : " (ppr c)
     -----------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
     sub_code rep x (CmmLit (CmmInt y _))
@@ -1117,7 +1141,7 @@ getRegister' dflags _ (CmmLit lit)
          else (standardRegister cmmtype)
   where
     vectorRegister _
-      = pprPanic "MOV operations for vector literals not yet implemented" empty
+      = panic "MOV operation for vector literals not implemented"
     standardRegister ctype
       = do
       let format = cmmTypeFormat ctype
@@ -1189,7 +1213,10 @@ getNonClobberedReg expr = do
                 return (reg, code)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
-reg2reg format@(VecFormat {}) src dst = VMOVUPS format (OpReg src) (OpReg dst)
+reg2reg format@(VecFormat _ FmtFloat W32) src dst
+  = VMOVUPS format (OpReg src) (OpReg dst)
+reg2reg (VecFormat _ _ _) _ _
+  = panic "MOV operation not implemented for vectors"
 reg2reg format src dst
   | format == FF80 = GMOV src dst
   | otherwise    = MOV format (OpReg src) (OpReg dst)
@@ -1727,7 +1754,7 @@ assignMem_VecCode pk addr src = do
         code | use_avx   = src_code `appOL`
                            addr_code `snocOL`
                            (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
-             | otherwise = panic "avx flag not enabled"
+             | otherwise = sorry "Please enable the -mavx flag"
   return code
 
 assignReg_VecCode format reg src = do
@@ -3348,23 +3375,24 @@ sse2NegCode w x = do
   return (Any fmt code)
 
 isVecExpr :: CmmExpr -> Bool
-isVecExpr (CmmMachOp (MO_V_Insert {}) _)   = True
-isVecExpr (CmmMachOp (MO_V_Extract {}) _)  = True
-isVecExpr (CmmMachOp (MO_V_Add {}) _)      = True
-isVecExpr (CmmMachOp (MO_V_Sub {}) _)      = True
-isVecExpr (CmmMachOp (MO_V_Mul {}) _)      = True
-isVecExpr (CmmMachOp (MO_VS_Quot {}) _)    = True
-isVecExpr (CmmMachOp (MO_VS_Rem {}) _)     = True
-isVecExpr (CmmMachOp (MO_VS_Neg {}) _)     = True
-isVecExpr (CmmMachOp (MO_VF_Insert {}) _)  = True
-isVecExpr (CmmMachOp (MO_VF_Extract {}) _) = True
-isVecExpr (CmmMachOp (MO_VF_Add {}) _)     = True
-isVecExpr (CmmMachOp (MO_VF_Sub {}) _)     = True
-isVecExpr (CmmMachOp (MO_VF_Mul {}) _)     = True
-isVecExpr (CmmMachOp (MO_VF_Quot {}) _)    = True
-isVecExpr (CmmMachOp (MO_VF_Neg {}) _)     = True
-isVecExpr (CmmMachOp _ [e])                = isVecExpr e
-isVecExpr _                                = False
+isVecExpr (CmmMachOp (MO_V_Insert {}) _)     = True
+isVecExpr (CmmMachOp (MO_V_Extract {}) _)    = True
+isVecExpr (CmmMachOp (MO_V_Add {}) _)        = True
+isVecExpr (CmmMachOp (MO_V_Sub {}) _)        = True
+isVecExpr (CmmMachOp (MO_V_Mul {}) _)        = True
+isVecExpr (CmmMachOp (MO_VS_Quot {}) _)      = True
+isVecExpr (CmmMachOp (MO_VS_Rem {}) _)       = True
+isVecExpr (CmmMachOp (MO_VS_Neg {}) _)       = True
+isVecExpr (CmmMachOp (MO_VF_Broadcast {}) _) = True
+isVecExpr (CmmMachOp (MO_VF_Insert {}) _)    = True
+isVecExpr (CmmMachOp (MO_VF_Extract {}) _)   = True
+isVecExpr (CmmMachOp (MO_VF_Add {}) _)       = True
+isVecExpr (CmmMachOp (MO_VF_Sub {}) _)       = True
+isVecExpr (CmmMachOp (MO_VF_Mul {}) _)       = True
+isVecExpr (CmmMachOp (MO_VF_Quot {}) _)      = True
+isVecExpr (CmmMachOp (MO_VF_Neg {}) _)       = True
+isVecExpr (CmmMachOp _ [e])                  = isVecExpr e
+isVecExpr _                                  = False
 
 needLlvm :: NatM a
 needLlvm =

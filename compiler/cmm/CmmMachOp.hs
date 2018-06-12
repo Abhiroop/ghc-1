@@ -128,8 +128,9 @@ data MachOp
   | MO_VU_Rem  Length Width
 
   -- Floting point vector element insertion and extraction operations
-  | MO_VF_Insert  Length Width   -- Insert scalar into vector
-  | MO_VF_Extract Length Width   -- Extract scalar from vector
+  | MO_VF_Broadcast Length Width   -- Broadcast a scalar into a vector
+  | MO_VF_Insert    Length Width   -- Insert scalar into vector
+  | MO_VF_Extract   Length Width   -- Extract scalar from vector
 
   -- Floating point vector operations
   | MO_VF_Add  Length Width
@@ -410,6 +411,7 @@ machOpResultType dflags mop tys =
     MO_VU_Quot l w      -> cmmVec l (cmmBits w)
     MO_VU_Rem  l w      -> cmmVec l (cmmBits w)
 
+    MO_VF_Broadcast l w -> cmmVec l (cmmFloat w)
     MO_VF_Insert  l w   -> cmmVec l (cmmFloat w)
     MO_VF_Extract _ w   -> cmmFloat w
 
@@ -501,6 +503,7 @@ machOpArgReps dflags op =
     MO_VU_Quot _ r      -> [r,r]
     MO_VU_Rem  _ r      -> [r,r]
 
+    MO_VF_Broadcast _ r -> [r,r]
     MO_VF_Insert  _ r   -> [r,r]
     MO_VF_Extract l r   -> [vecwidth l r, r]
 
