@@ -770,7 +770,8 @@ pprInstr (VEXTRACTPS format offset from to)
   = pprFormatOpRegOp (sLit "vextractps") format offset from to
 pprInstr (INSERTPS format offset addr dst)
   = pprFormatOpAddrReg (sLit "insertps") format offset addr dst
-
+pprInstr (VPSHUFD format offset src dst)
+  = pprFormatOpOpReg (sLit "vpshufd") format offset src dst
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
 pprInstr (MUL2 format op) = pprFormatOp (sLit "mul") format op

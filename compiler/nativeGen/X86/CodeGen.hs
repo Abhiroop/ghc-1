@@ -967,12 +967,6 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     vector_float_op _ _ _ c1 c2
       = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
     --------------------
-    -- NOTE:
-    -- (VEXTRACTPS $0, %xmm0, %xmm1) is not allowed,
-    -- so we use the more inefficient
-    -- VEXTRACTPS $0, %xmm0, addr
-    -- VMOVUPS  addr, %xmm1
-    -- to achieve the same
     vector_float_unpack :: Length
                         -> Width
                         -> CmmExpr
@@ -985,10 +979,11 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           platform = targetPlatform dflags
           r        = getVecRegisterReg platform True format reg
           imm      = litToImm lit
-          addr     = spRel dflags 0
           code dst
-            = (unitOL (VEXTRACTPS format (OpImm imm) r (OpAddr addr))) `snocOL`
-              (VMOVUPS format (OpAddr addr) (OpReg dst))
+            = case lit of
+                CmmInt 0 _ -> unitOL $ VMOVUPS format (OpReg r) (OpReg dst)
+                CmmInt _ _ -> unitOL $ VPSHUFD format (OpImm imm) (OpReg r) dst
+                _          -> panic "Error in offset"
       return (Any format code)
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
