@@ -18,3 +18,4 @@ main = do
   print (FX4# (minusFloatX4# (broadcastFloatX4# 3.5#) (broadcastFloatX4# 2.2#)))
   print (FX4# (timesFloatX4# (broadcastFloatX4# 2.4#) (broadcastFloatX4# 2.2#)))
   print (FX4# (divideFloatX4# (broadcastFloatX4# 9.2#) (broadcastFloatX4# 4.0#)))
+  print (FX4# (negateFloatX4# (broadcastFloatX4# 3.5#)))

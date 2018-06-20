@@ -111,11 +111,10 @@ passFloatArgsInXmm dflags = case platformArch (targetPlatform dflags) of
 -- pass vectors in registers, but it must only be used with a version of LLVM
 -- that has an updated GHC calling convention.
 passVectorInReg :: Width -> DynFlags -> Bool
-passVectorInReg w dflags
-  | w == W128 || w == W256 = case platformArch (targetPlatform dflags) of
+passVectorInReg W128 dflags = case platformArch (targetPlatform dflags) of
                                 ArchX86_64 -> True
                                 _          -> gopt Opt_LlvmPassVectorsInRegisters dflags
-  | otherwise              = gopt Opt_LlvmPassVectorsInRegisters dflags
+passVectorInReg _    dflags = gopt Opt_LlvmPassVectorsInRegisters dflags
 
 assignStack :: DynFlags -> ByteOff -> (a -> CmmType) -> [a]
             -> (

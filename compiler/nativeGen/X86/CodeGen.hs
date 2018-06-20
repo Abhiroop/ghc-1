@@ -665,6 +665,7 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
 
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
     sse2 <- sse2Enabled
+    avx  <- avxEnabled
     case mop of
       MO_F_Neg w
          | sse2      -> sse2NegCode w x
@@ -730,14 +731,16 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
       MO_VS_Neg {}        -> needLlvm
       MO_VU_Quot {}       -> needLlvm
       MO_VU_Rem {}        -> needLlvm
-      MO_VF_Broadcast {}  -> needLlvm
-      MO_VF_Insert {}     -> needLlvm
-      MO_VF_Extract {}    -> needLlvm
-      MO_VF_Add {}        -> needLlvm
-      MO_VF_Sub {}        -> needLlvm
-      MO_VF_Mul {}        -> needLlvm
-      MO_VF_Quot {}       -> needLlvm
-      MO_VF_Neg {}        -> needLlvm
+      MO_VF_Broadcast {}  -> incorrectOperands
+      MO_VF_Insert {}     -> incorrectOperands
+      MO_VF_Extract {}    -> incorrectOperands
+      MO_VF_Add {}        -> incorrectOperands
+      MO_VF_Sub {}        -> incorrectOperands
+      MO_VF_Mul {}        -> incorrectOperands
+      MO_VF_Quot {}       -> incorrectOperands
+
+      MO_VF_Neg l w  | avx       -> vector_float_negate l w x
+                     | otherwise -> sorry "Please enable the -mavx flag"
 
       _other -> pprPanic "getRegister" (pprMachOp mop)
    where
@@ -775,6 +778,19 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
             = do e_code <- getRegister' dflags is32Bit expr
                  return (swizzleRegisterRep e_code new_format)
 
+        vector_float_negate :: Length -> Width -> CmmExpr -> NatM Register
+        vector_float_negate l w (CmmReg r) = do
+          dflags               <- getDynFlags
+          tmp                  <- getNewRegNat (VecFormat l FmtFloat w)
+          Amode addr addr_code <- memConstant (widthInBytes W32) (CmmFloat 0.0 W32)
+          let format   = VecFormat l FmtFloat w
+              platform = targetPlatform dflags
+              reg      = getVecRegisterReg platform True format r
+              code dst = addr_code `snocOL`
+                         (VBROADCASTSS format addr tmp) `snocOL`
+                         (VSUBPS format (OpReg reg) tmp dst)
+          return (Any format code)
+        vector_float_negate _ _ c = pprPanic "Negate not supported for " (ppr c)
 
 getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
   sse4_1 <- sse4_1Enabled
@@ -862,7 +878,8 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
 
       MO_VF_Quot l w      | avx       -> vector_float_op VDIV l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
-      MO_VF_Neg {}     -> needLlvm
+
+      MO_VF_Neg {}                    -> incorrectOperands
 
       _other -> pprPanic "getRegister(x86) - binary CmmMachOp (1)" (pprMachOp mop)
   where
@@ -958,11 +975,13 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           reg1     = getVecRegisterReg platform True format r1
           reg2     = getVecRegisterReg platform True format r2
           code dst = case op of
-            -- opcode src2 src1 dst <==> dst = src1 `opcode` src2
-            VADD -> unitOL (VADDPS format (OpReg reg2) reg1 dst)
-            VSUB -> unitOL (VSUBPS format (OpReg reg2) reg1 dst)
-            VMUL -> unitOL (VMULPS format (OpReg reg2) reg1 dst)
-            VDIV -> unitOL (VDIVPS format (OpReg reg2) reg1 dst)
+            VADD -> arithInstr VADDPS
+            VSUB -> arithInstr VSUBPS
+            VMUL -> arithInstr VMULPS
+            VDIV -> arithInstr VDIVPS
+            where
+              -- opcode src2 src1 dst <==> dst = src1 `opcode` src2
+              arithInstr instr = unitOL (instr format (OpReg reg2) reg1 dst)
       return (Any format code)
     vector_float_op _ _ _ c1 c2
       = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
@@ -3393,3 +3412,6 @@ needLlvm :: NatM a
 needLlvm =
     sorry $ unlines ["The native code generator does not support vector"
                     ,"instructions. Please use -fllvm."]
+
+incorrectOperands :: NatM a
+incorrectOperands = sorry "Incorrect number of operands"

@@ -102,11 +102,11 @@ isVecFormat _              = False
 cmmTypeFormat :: CmmType -> Format
 cmmTypeFormat ty
         | isFloatType ty        = floatFormat (typeWidth ty)
-        | isVecType ty          = generateVecFormat ty
+        | isVecType ty          = vecFormat ty
         | otherwise             = intFormat (typeWidth ty)
 
-generateVecFormat :: CmmType -> Format
-generateVecFormat ty =
+vecFormat :: CmmType -> Format
+vecFormat ty =
   let l      = vecLength ty
       elemTy = vecElemType ty
    in if isFloatType elemTy
