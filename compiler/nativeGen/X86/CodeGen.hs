@@ -79,7 +79,6 @@ import Data.Word
 
 import qualified Data.Map as M
 
-data VectorArithInstns = VADD | VSUB | VMUL | VDIV
 
 is32BitPlatform :: NatM Bool
 is32BitPlatform = do
@@ -509,6 +508,13 @@ iselExpr64 expr
 
 
 --------------------------------------------------------------------------------
+
+-- This is a helper data type which helps reduce the code duplication for
+-- the code generation of arithmetic operations. This is not specifically
+-- targetted for any particular type like Int8, Int32 etc
+data VectorArithInstns = VADD | VSUB | VMUL | VDIV
+
+
 getRegister :: CmmExpr -> NatM Register
 getRegister e = do dflags <- getDynFlags
                    is32Bit <- is32BitPlatform
