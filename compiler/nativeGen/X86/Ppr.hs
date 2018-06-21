@@ -364,7 +364,9 @@ pprFormat x
                 FF32  -> sLit "ss"      -- "scalar single-precision float" (SSE2)
                 FF64  -> sLit "sd"      -- "scalar double-precision float" (SSE2)
                 FF80  -> sLit "t"
-                -- TODO: Extend this to print "ss", "ps" etc
+
+                VecFormat _ FmtFloat W32 -> sLit "ps"
+                VecFormat _ FmtFloat W64 -> sLit "pd"
                 VecFormat {} -> sLit ""
                 )
 
@@ -752,26 +754,26 @@ pprInstr (IMUL2 fmt op)  = pprFormatOp (sLit "imul") fmt op
 
 -- Vector Instructions
 
-pprInstr (VADDPS format s1 s2 dst)
-  = pprFormatOpRegReg (sLit "vaddps") format s1 s2 dst
-pprInstr (VSUBPS format s1 s2 dst)
-  = pprFormatOpRegReg (sLit "vsubps") format s1 s2 dst
-pprInstr (VMULPS format s1 s2 dst)
-  = pprFormatOpRegReg (sLit "vmulps") format s1 s2 dst
-pprInstr (VDIVPS format s1 s2 dst)
-  = pprFormatOpRegReg (sLit "vdivps") format s1 s2 dst
-pprInstr (VBROADCASTSS format from to)
-  = pprFormatAddrReg (sLit "vbroadcastss") format from to
-pprInstr (VMOVUPS format from to)
-  = pprFormatOpOp (sLit "vmovups") format from to
+pprInstr (VADD format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vadd") format s1 s2 dst
+pprInstr (VSUB format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vsub") format s1 s2 dst
+pprInstr (VMUL format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vmul") format s1 s2 dst
+pprInstr (VDIV format s1 s2 dst)
+  = pprFormatOpRegReg (sLit "vdiv") format s1 s2 dst
+pprInstr (VBROADCAST format from to)
+  = pprBroadcast (sLit "vbroadcast") format from to
+pprInstr (VMOVU format from to)
+  = pprFormatOpOp (sLit "vmovu") format from to
 pprInstr (VPXOR format s1 s2 dst)
-  = pprFormatRegRegReg (sLit "vpxor") format s1 s2 dst
-pprInstr (VEXTRACTPS format offset from to)
-  = pprFormatOpRegOp (sLit "vextractps") format offset from to
+  = pprXor (sLit "vpxor") format s1 s2 dst
+pprInstr (VEXTRACT format offset from to)
+  = pprFormatOpRegOp (sLit "vextract") format offset from to
 pprInstr (INSERTPS format offset addr dst)
-  = pprFormatOpAddrReg (sLit "insertps") format offset addr dst
+  = pprInsert (sLit "insertps") format offset addr dst
 pprInstr (VPSHUFD format offset src dst)
-  = pprFormatOpOpReg (sLit "vpshufd") format offset src dst
+  = pprShuf (sLit "vpshufd") format offset src dst
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
 pprInstr (MUL2 format op) = pprFormatOp (sLit "mul") format op
@@ -1167,7 +1169,22 @@ pprMnemonic  :: LitString -> Format -> SDoc
 pprMnemonic name format =
    char '\t' <> ptext name <> pprFormat format <> space
 
+pprGenMnemonic  :: LitString -> Format -> SDoc
+pprGenMnemonic name _ =
+   char '\t' <> ptext name <> ptext (sLit "") <> space
 
+pprBroadcastMnemonic  :: LitString -> Format -> SDoc
+pprBroadcastMnemonic name format =
+   char '\t' <> ptext name <> pprBroadcastFormat format <> space
+
+pprBroadcastFormat :: Format -> SDoc
+pprBroadcastFormat x
+  = ptext (case x of
+             VecFormat _ FmtFloat W32 -> sLit "ss"
+             VecFormat _ FmtFloat W64 -> sLit "sd"
+             VecFormat {} -> sLit ""
+             _ -> panic "Scalar Format invading vector operation"
+          )
 pprFormatImmOp :: LitString -> Format -> Imm -> Operand -> SDoc
 pprFormatImmOp name format imm op1
   = hcat [
@@ -1230,16 +1247,6 @@ pprFormatRegReg name format reg1 reg2
         pprReg format reg2
     ]
 
-pprFormatOpAddrReg :: LitString -> Format -> Operand -> AddrMode -> Reg -> SDoc
-pprFormatOpAddrReg name format off addr dst
-  = hcat [
-        pprMnemonic name format,
-        pprOperand format off,
-        comma,
-        pprAddr addr,
-        comma,
-        pprReg format dst
-    ]
 
 pprFormatOpRegOp :: LitString -> Format -> Operand -> Reg -> Operand -> SDoc
 pprFormatOpRegOp name format off reg1 op2
@@ -1361,7 +1368,6 @@ pprFormatAddrReg name format op dst
         pprReg format dst
     ]
 
-
 pprFormatRegAddr :: LitString -> Format -> Reg -> AddrMode -> SDoc
 pprFormatRegAddr name format src op
   = hcat [
@@ -1395,3 +1401,49 @@ pprCondInstr :: LitString -> Cond -> SDoc -> SDoc
 pprCondInstr name cond arg
   = hcat [ char '\t', ptext name, pprCond cond, space, arg]
 
+
+-- Custom pretty printers
+-- These instructions currently don't follow a uniform suffix pattern
+-- in their names, so we have custom pretty printers for them.
+
+pprBroadcast :: LitString -> Format -> AddrMode -> Reg -> SDoc
+pprBroadcast name format op dst
+  = hcat [
+        pprBroadcastMnemonic name format,
+        pprAddr op,
+        comma,
+        pprReg format dst
+    ]
+
+pprXor :: LitString -> Format -> Reg -> Reg -> Reg -> SDoc
+pprXor name format reg1 reg2 reg3
+  = hcat [
+        pprGenMnemonic name format,
+        pprReg format reg1,
+        comma,
+        pprReg format reg2,
+        comma,
+        pprReg format reg3
+    ]
+
+pprInsert :: LitString -> Format -> Operand -> AddrMode -> Reg -> SDoc
+pprInsert name format off addr dst
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format off,
+        comma,
+        pprAddr addr,
+        comma,
+        pprReg format dst
+    ]
+
+pprShuf :: LitString -> Format -> Operand -> Operand -> Reg -> SDoc
+pprShuf name format op1 op2 reg3
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format op1,
+        comma,
+        pprOperand format op2,
+        comma,
+        pprReg format reg3
+    ]

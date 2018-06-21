@@ -512,7 +512,7 @@ iselExpr64 expr
 -- This is a helper data type which helps reduce the code duplication for
 -- the code generation of arithmetic operations. This is not specifically
 -- targetted for any particular type like Int8, Int32 etc
-data VectorArithInstns = VADD | VSUB | VMUL | VDIV
+data VectorArithInstns = A | S | M | D
 
 
 getRegister :: CmmExpr -> NatM Register
@@ -793,8 +793,8 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
               platform = targetPlatform dflags
               reg      = getVecRegisterReg platform True format r
               code dst = addr_code `snocOL`
-                         (VBROADCASTSS format addr tmp) `snocOL`
-                         (VSUBPS format (OpReg reg) tmp dst)
+                         (VBROADCAST format addr tmp) `snocOL`
+                         (VSUB format (OpReg reg) tmp dst)
           return (Any format code)
         vector_float_negate _ _ c = pprPanic "Negate not supported for " (ppr c)
 
@@ -873,16 +873,16 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VF_Extract l w   | avx       -> vector_float_unpack l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Add l w       | avx       -> vector_float_op VADD l w x y
+      MO_VF_Add l w       | avx       -> vector_float_op A l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Sub l w       | avx       -> vector_float_op VSUB l w x y
+      MO_VF_Sub l w       | avx       -> vector_float_op S l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Mul l w       | avx       -> vector_float_op VMUL l w x y
+      MO_VF_Mul l w       | avx       -> vector_float_op M l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Quot l w      | avx       -> vector_float_op VDIV l w x y
+      MO_VF_Quot l w      | avx       -> vector_float_op D l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
       MO_VF_Neg {}                    -> incorrectOperands
@@ -981,10 +981,10 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           reg1     = getVecRegisterReg platform True format r1
           reg2     = getVecRegisterReg platform True format r2
           code dst = case op of
-            VADD -> arithInstr VADDPS
-            VSUB -> arithInstr VSUBPS
-            VMUL -> arithInstr VMULPS
-            VDIV -> arithInstr VDIVPS
+            A -> arithInstr VADD
+            S -> arithInstr VSUB
+            M -> arithInstr VMUL
+            D -> arithInstr VDIV
             where
               -- opcode src2 src1 dst <==> dst = src1 `opcode` src2
               arithInstr instr = unitOL (instr format (OpReg reg2) reg1 dst)
@@ -1006,7 +1006,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
           imm      = litToImm lit
           code dst
             = case lit of
-                CmmInt 0 _ -> unitOL $ VMOVUPS format (OpReg r) (OpReg dst)
+                CmmInt 0 _ -> unitOL $ VMOVU format (OpReg r) (OpReg dst)
                 CmmInt _ _ -> unitOL $ VPSHUFD format (OpImm imm) (OpReg r) dst
                 _          -> panic "Error in offset"
       return (Any format code)
@@ -1032,7 +1032,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       = do
       Amode addr code <- memConstant (widthInBytes w) lit
       let f = VecFormat len FmtFloat wid
-       in return $ Any f (\r -> code `snocOL` (VBROADCASTSS f addr r))
+       in return $ Any f (\r -> code `snocOL` (VBROADCAST f addr r))
     vector_float_broadcast _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)
     -----------------------
@@ -1083,7 +1083,7 @@ getRegister' _ _ (CmmLoad mem pk)
       let format = cmmTypeFormat pk
           code dst
             | use_avx = mem_code `snocOL`
-                        VMOVUPS format (OpAddr addr) (OpReg dst)
+                        VMOVU format (OpAddr addr) (OpReg dst)
             | otherwise = pprPanic (unlines ["avx flag not enabled",
                                             "for loading to "])
                           (ppr pk)
@@ -1234,7 +1234,7 @@ getNonClobberedReg expr = do
 
 reg2reg :: Format -> Reg -> Reg -> Instr
 reg2reg format@(VecFormat _ FmtFloat W32) src dst
-  = VMOVUPS format (OpReg src) (OpReg dst)
+  = VMOVU format (OpReg src) (OpReg dst)
 reg2reg (VecFormat _ _ _) _ _
   = panic "MOV operation not implemented for vectors"
 reg2reg format src dst
@@ -1773,7 +1773,7 @@ assignMem_VecCode pk addr src = do
   let
         code | use_avx   = src_code `appOL`
                            addr_code `snocOL`
-                           (VMOVUPS pk (OpReg src_reg) (OpAddr addr))
+                           (VMOVU pk (OpReg src_reg) (OpAddr addr))
              | otherwise = sorry "Please enable the -mavx flag"
   return code
 

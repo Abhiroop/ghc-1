@@ -361,22 +361,22 @@ data Instr
         -- Vector Instructions --
         -- NOTE: Instructions follow the AT&T syntax
         -- Constructors and deconstructors
-        | VBROADCASTSS Format AddrMode Reg
-        | VEXTRACTPS   Format Operand Reg Operand
-        | INSERTPS     Format Operand AddrMode Reg
+        | VBROADCAST  Format AddrMode Reg
+        | VEXTRACT    Format Operand Reg Operand
+        | INSERTPS    Format Operand AddrMode Reg
 
-        | VMOVUPS      Format Operand Operand
+        | VMOVU       Format Operand Operand
 
-        | VPXOR        Format Reg Reg Reg
+        | VPXOR       Format Reg Reg Reg
 
         -- Arithmetic
-        | VADDPS       Format Operand Reg Reg
-        | VSUBPS       Format Operand Reg Reg
-        | VMULPS       Format Operand Reg Reg
-        | VDIVPS       Format Operand Reg Reg
+        | VADD       Format Operand Reg Reg
+        | VSUB       Format Operand Reg Reg
+        | VMUL       Format Operand Reg Reg
+        | VDIV       Format Operand Reg Reg
 
         -- Shuffle
-        | VPSHUFD      Format Operand Operand Reg
+        | VPSHUFD    Format Operand Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -499,18 +499,18 @@ x86_regUsageOfInstr platform instr
     MFENCE -> noUsage
 
     -- vector instructions
-    VBROADCASTSS _ src dst   -> mkRU (use_EA src []) [dst]
-    VEXTRACTPS   _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
+    VBROADCAST _ src dst   -> mkRU (use_EA src []) [dst]
+    VEXTRACT     _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
     INSERTPS     _ off addr dst
       -> mkRU ((use_R off []) ++ (use_EA addr [])) [dst]
 
-    VMOVUPS      _ src dst   -> mkRU (use_R src []) (use_R dst [])
+    VMOVU        _ src dst   -> mkRU (use_R src []) (use_R dst [])
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
 
-    VADDPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
-    VSUBPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
-    VMULPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
-    VDIVPS       _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VADD         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VSUB         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VMUL         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
+    VDIV         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
 
     VPSHUFD      _ off src dst
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
@@ -697,19 +697,19 @@ x86_patchRegsOfInstr instr env
     MFENCE               -> instr
 
     -- vector instructions
-    VBROADCASTSS fmt src dst   -> VBROADCASTSS fmt (lookupAddr src) (env dst)
-    VEXTRACTPS   fmt off src dst
-      -> VEXTRACTPS fmt (patchOp off) (env src) (patchOp dst)
+    VBROADCAST   fmt src dst   -> VBROADCAST fmt (lookupAddr src) (env dst)
+    VEXTRACT     fmt off src dst
+      -> VEXTRACT fmt (patchOp off) (env src) (patchOp dst)
     INSERTPS    fmt off addr dst
       -> INSERTPS fmt (patchOp off) (lookupAddr addr) (env dst)
 
-    VMOVUPS      fmt src dst   -> VMOVUPS fmt (patchOp src) (patchOp dst)
-    VPXOR        fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
+    VMOVU      fmt src dst   -> VMOVU fmt (patchOp src) (patchOp dst)
+    VPXOR      fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
 
-    VADDPS       fmt s1 s2 dst -> VADDPS fmt (patchOp s1) (env s2) (env dst)
-    VSUBPS       fmt s1 s2 dst -> VSUBPS fmt (patchOp s1) (env s2) (env dst)
-    VMULPS       fmt s1 s2 dst -> VMULPS fmt (patchOp s1) (env s2) (env dst)
-    VDIVPS       fmt s1 s2 dst -> VDIVPS fmt (patchOp s1) (env s2) (env dst)
+    VADD       fmt s1 s2 dst -> VADD fmt (patchOp s1) (env s2) (env dst)
+    VSUB       fmt s1 s2 dst -> VSUB fmt (patchOp s1) (env s2) (env dst)
+    VMUL       fmt s1 s2 dst -> VMUL fmt (patchOp s1) (env s2) (env dst)
+    VDIV       fmt s1 s2 dst -> VDIV fmt (patchOp s1) (env s2) (env dst)
 
     VPSHUFD      fmt off src dst
       -> VPSHUFD fmt (patchOp off) (patchOp src) (env dst)
