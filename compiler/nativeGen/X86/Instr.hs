@@ -365,8 +365,12 @@ data Instr
         | VEXTRACT    Format Operand Reg Operand
         | INSERTPS    Format Operand AddrMode Reg
 
+        -- move operations
         | VMOVU       Format Operand Operand
+        | MOVL        Format Operand Operand
+        | MOVH        Format Operand Operand
 
+        -- logic operations
         | VPXOR       Format Reg Reg Reg
 
         -- Arithmetic
@@ -505,6 +509,8 @@ x86_regUsageOfInstr platform instr
       -> mkRU ((use_R off []) ++ (use_EA addr [])) [dst]
 
     VMOVU        _ src dst   -> mkRU (use_R src []) (use_R dst [])
+    MOVL         _ src dst   -> mkRU (use_R src []) (use_R dst [])
+    MOVH         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
 
     VADD         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
@@ -704,6 +710,8 @@ x86_patchRegsOfInstr instr env
       -> INSERTPS fmt (patchOp off) (lookupAddr addr) (env dst)
 
     VMOVU      fmt src dst   -> VMOVU fmt (patchOp src) (patchOp dst)
+    MOVL       fmt src dst   -> MOVL  fmt (patchOp src) (patchOp dst)
+    MOVH       fmt src dst   -> MOVH  fmt (patchOp src) (patchOp dst)
     VPXOR      fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
 
     VADD       fmt s1 s2 dst -> VADD fmt (patchOp s1) (env s2) (env dst)

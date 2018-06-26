@@ -583,10 +583,9 @@ globalRegType _      (FloatReg _)      = cmmFloat W32
 globalRegType _      (DoubleReg _)     = cmmFloat W64
 globalRegType _      (LongReg _)       = cmmBits W64
 -- NOTE:
--- Initially this broke things in the Cmm Linter like:
--- _B1::Fx4V128 = XMM1; //CmmAssign
--- This change allows the above
-globalRegType _      (XmmReg _)        = cmmVec 4 (cmmFloat W32)
+-- The below XMM, YMM, ZMM CmmTypes are not fully correct because an
+-- XMM can also hold 2 doubles or 16 Int8s etc, similarly for YMM, ZMM
+globalRegType _      (XmmReg _)        = cmmVec 2 (cmmFloat W64)
 globalRegType _      (YmmReg _)        = cmmVec 8 (cmmBits W32)
 globalRegType _      (ZmmReg _)        = cmmVec 16 (cmmBits W32)
 

@@ -5,6 +5,7 @@ module CmmType
     , cmmBits, cmmFloat
     , typeWidth, cmmEqType, cmmEqType_ignoring_ptrhood
     , isFloatType, isGcPtrType, isWord32, isWord64, isFloat64, isFloat32
+    , isVecCatType
 
     , Width(..)
     , widthInBits, widthInBytes, widthInLog, widthFromBytes
@@ -138,6 +139,10 @@ isFloatType _other                  = False
 
 isGcPtrType (CmmType GcPtrCat _) = True
 isGcPtrType _other               = False
+
+isVecCatType :: CmmType -> Bool
+isVecCatType (CmmType (VecCat _ _) _) = True
+isVecCatType _other                   = False
 
 isWord32, isWord64, isFloat32, isFloat64 :: CmmType -> Bool
 -- isWord64 is true of 64-bit non-floats (both gc-ptrs and otherwise)

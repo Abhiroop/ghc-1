@@ -365,9 +365,10 @@ pprFormat x
                 FF64  -> sLit "sd"      -- "scalar double-precision float" (SSE2)
                 FF80  -> sLit "t"
 
-                VecFormat _ FmtFloat W32 -> sLit "ps"
-                VecFormat _ FmtFloat W64 -> sLit "pd"
-                VecFormat {} -> sLit ""
+                VecFormat _ FmtFloat W32  -> sLit "ps"
+                VecFormat _ FmtDouble W64 -> sLit "pd"
+                -- TODO: Add Ints and remove panic
+                VecFormat {} -> panic "Incorrect width"
                 )
 
 pprFormat_x87 :: Format -> SDoc
@@ -766,6 +767,10 @@ pprInstr (VBROADCAST format from to)
   = pprBroadcast (sLit "vbroadcast") format from to
 pprInstr (VMOVU format from to)
   = pprFormatOpOp (sLit "vmovu") format from to
+pprInstr (MOVL format from to)
+  = pprFormatOpOp (sLit "movl") format from to
+pprInstr (MOVH format from to)
+  = pprFormatOpOp (sLit "movh") format from to
 pprInstr (VPXOR format s1 s2 dst)
   = pprXor (sLit "vpxor") format s1 s2 dst
 pprInstr (VEXTRACT format offset from to)
@@ -1180,11 +1185,13 @@ pprBroadcastMnemonic name format =
 pprBroadcastFormat :: Format -> SDoc
 pprBroadcastFormat x
   = ptext (case x of
-             VecFormat _ FmtFloat W32 -> sLit "ss"
-             VecFormat _ FmtFloat W64 -> sLit "sd"
-             VecFormat {} -> sLit ""
+             VecFormat _ FmtFloat W32  -> sLit "ss"
+             VecFormat _ FmtDouble W64 -> sLit "sd"
+             -- TODO: Add Ints and remove panic
+             VecFormat {} -> panic "Incorrect width"
              _ -> panic "Scalar Format invading vector operation"
           )
+
 pprFormatImmOp :: LitString -> Format -> Imm -> Operand -> SDoc
 pprFormatImmOp name format imm op1
   = hcat [
