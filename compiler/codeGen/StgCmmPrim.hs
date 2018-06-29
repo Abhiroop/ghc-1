@@ -1707,6 +1707,7 @@ doVecPackOp :: Maybe MachOp  -- Cast from element to vector component
             -> FCode ()
 doVecPackOp maybe_pre_write_cast ty z es res = do
     dst <- newTemp ty
+    emitAssign (CmmLocal dst) z
     vecPack dst es 0
   where
     vecPack :: CmmFormal -> [CmmExpr] -> Int -> FCode ()
@@ -1716,9 +1717,9 @@ doVecPackOp maybe_pre_write_cast ty z es res = do
     vecPack src (e : es) i = do
         if isFloatType (vecElemType ty)
           then emitAssign (CmmLocal src) (CmmMachOp (MO_VF_Insert len wid)
-                                           [cast e, iLit])
+                                           [CmmReg (CmmLocal src), cast e, iLit])
           else emitAssign (CmmLocal src) (CmmMachOp (MO_V_Insert len wid)
-                                           [cast e, iLit])
+                                           [CmmReg (CmmLocal src), cast e, iLit])
         vecPack src es (i + 1)
       where
         -- vector indices are always 32-bits

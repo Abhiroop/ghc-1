@@ -668,6 +668,50 @@ getRegister' _ is32Bit (CmmMachOp (MO_Add W64) [CmmReg (CmmGlobal PicBaseReg),
       return $ Any II64 (\dst -> unitOL $
         LEA II64 (OpAddr (ripRel (litToImm displacement))) (OpReg dst))
 
+getRegister' _ _ (CmmMachOp mop [x, y, z]) = do -- ternary MachOps
+  sse4_1 <- sse4_1Enabled
+  sse2   <- sse2Enabled
+  case mop of
+    MO_VF_Insert l W32  | sse4_1    -> vector_float_pack l W32 x y z
+                        | otherwise -> sorry "Please enable the -msse4 flag"
+    MO_VF_Insert l W64  | sse2      -> vector_float_pack l W64 x y z
+                        | otherwise -> sorry "Please enable the -msse2 flag"
+    _other                          -> incorrectOperands
+    where
+    vector_float_pack :: Length
+                      -> Width
+                      -> CmmExpr
+                      -> CmmExpr
+                      -> CmmExpr
+                      -> NatM Register
+    vector_float_pack len W32 _ (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
+      = do
+      Amode addr addr_code <- memConstant (widthInBytes w) lit
+      let f        = VecFormat len FmtFloat W32
+          imm      = litToImm offset
+          code dst
+            = case offset of
+                CmmInt 0 _ -> addr_code `snocOL`
+                              (VMOVU f (OpAddr addr) (OpReg dst))
+                CmmInt _ _ -> addr_code `snocOL`
+                              (INSERTPS f (OpImm imm) addr dst)
+                _ -> panic "Error in offset while packing"
+       in return $ Any f code
+    vector_float_pack len W64 _ (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
+      = do
+      Amode addr addr_code <- memConstant (widthInBytes w) lit
+      let f = VecFormat len FmtDouble W64
+          code dst
+            = case offset of
+                CmmInt 0  _ -> addr_code `snocOL`
+                               (MOVL f (OpAddr addr) (OpReg dst))
+                CmmInt 80 _ -> addr_code `snocOL`
+                               (MOVH f (OpAddr addr) (OpReg dst))
+                _ -> panic "Error in offset while packing"
+       in return $ Any f code
+    vector_float_pack _ _ _ c _
+      = pprPanic "Pack not supported for : " (ppr c)
+
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
     sse2 <- sse2Enabled
     avx  <- avxEnabled
@@ -807,7 +851,6 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
         vector_float_negate _ _ c = pprPanic "Negate not supported for " (ppr c)
 
 getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
-  sse4_1 <- sse4_1Enabled
   sse2   <- sse2Enabled
   avx    <- avxEnabled
   case mop of
@@ -878,12 +921,6 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VF_Broadcast l W64 | sse2      -> vector_float_broadcast l W64 x y
                             | otherwise -> sorry "Please enable the -msse2 flag"
 
-      MO_VF_Insert l W32    | sse4_1    -> vector_float_pack l W32 x y
-                            | otherwise -> sorry "Please enable the -msse4 flag"
-
-      MO_VF_Insert l W64    | sse2      -> vector_float_pack l W64 x y
-                            | otherwise -> sorry "Please enable the -msse2 flag"
-
       MO_VF_Extract l W32   | avx       -> vector_float_unpack l W32 x y
                             | otherwise -> sorry "Please enable the -mavx flag"
 
@@ -902,7 +939,8 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VF_Quot l w      | avx       -> vector_float_op D l w x y
                           | otherwise -> sorry "Please enable the -mavx flag"
 
-      MO_VF_Neg {}                    -> incorrectOperands
+      MO_VF_Insert {}                  -> incorrectOperands
+      MO_VF_Neg {}                     -> incorrectOperands
 
       _other -> pprPanic "getRegister(x86) - binary CmmMachOp (1)" (pprMachOp mop)
   where
@@ -1048,28 +1086,6 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
     -----------------------
-    vector_float_pack :: Length -> Width -> CmmExpr -> CmmExpr -> NatM Register
-    vector_float_pack len W32 (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
-      = do
-      Amode addr code <- memConstant (widthInBytes w) lit
-      let f   = VecFormat len FmtFloat W32
-          imm = litToImm offset
-       in return $ Any f (\r -> code `snocOL` (INSERTPS f (OpImm imm) addr r))
-    vector_float_pack len W64 (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
-      = do
-      Amode addr addr_code <- memConstant (widthInBytes w) lit
-      let f = VecFormat len FmtDouble W64
-          code dst
-            = case offset of
-                CmmInt 0  _ -> addr_code `snocOL`
-                               (MOVL f (OpAddr addr) (OpReg dst))
-                CmmInt 80 _ -> addr_code `snocOL`
-                               (MOVH f (OpAddr addr) (OpReg dst))
-                _ -> panic "Error in offset while packing"
-       in return $ Any f code
-    vector_float_pack _ _ c _
-      = pprPanic "Pack not supported for : " (ppr c)
-    -----------------------
     vector_float_broadcast :: Length
                            -> Width
                            -> CmmExpr
@@ -1214,8 +1230,14 @@ getRegister' dflags _ (CmmLit lit)
          then (vectorRegister cmmtype)
          else (standardRegister cmmtype)
   where
-    vectorRegister _
-      = panic "MOV operation for vector literals not implemented"
+    vectorRegister ctype
+      = do
+      --NOTE:
+      -- This operation is only used to zero a register. For loading a
+      -- vector literal there are pack and broadcast operations
+      let format = cmmTypeFormat ctype
+          code dst = unitOL (XOR format (OpReg dst) (OpReg dst))
+      return (Any format code)
     standardRegister ctype
       = do
       let format = cmmTypeFormat ctype

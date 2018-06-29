@@ -373,10 +373,7 @@ shouldDiscard :: CmmNode e x -> LocalRegSet -> Bool
 shouldDiscard node live
    = case node of
        CmmAssign r (CmmReg r') | r == r' -> True
-       CmmAssign (CmmLocal r@(LocalReg _ ct)) _
-         -> if isVecCatType ct
-            then False
-            else not (r `Set.member` live)
+       CmmAssign (CmmLocal r) _ -> not (r `Set.member` live)
        _otherwise -> False
 
 
@@ -428,7 +425,7 @@ tryToInline dflags live node assigs = go usages node emptyLRegSet assigs
 
   go _usages node _skipped [] = (node, [])
 
-  go usages node skipped (a@(l,rhs,_) : rest)
+  go usages node skipped (a@(l@(LocalReg _ ct),rhs,_) : rest)
    | cannot_inline           = dont_inline
    | occurs_none             = discard  -- Note [discard during inlining]
    | occurs_once             = inline_and_discard
@@ -454,12 +451,10 @@ tryToInline dflags live node assigs = go usages node emptyLRegSet assigs
         cannot_inline = skipped `regsUsedIn` rhs -- Note [dependent assignments]
                         || l `elemLRegSet` skipped
                         || not (okToInline dflags rhs node)
+                        || isVecCatType ct
 
         l_usages = lookupUFM usages l
-        l_live   = let (LocalReg _ ct) = l
-                    in if isVecCatType ct
-                       then True
-                       else l `elemRegSet` live
+        l_live   = l `elemRegSet` live
 
         occurs_once = not l_live && l_usages == Just 1
         occurs_none = not l_live && l_usages == Nothing
