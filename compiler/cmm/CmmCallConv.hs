@@ -67,8 +67,8 @@ assignArgumentsPos dflags off conv arg_ty reps = (stk_off, assignments)
                       (W128, (vs, fs, ds, ls, s:ss))
                         | passVectorInReg W128 dflags
                           -> let elt_ty = vecElemType ty
-                                      l = vecLength ty
-                                      w = typeWidth elt_ty
+                                 l      = vecLength ty
+                                 w      = typeWidth elt_ty
                               in if isFloatType elt_ty
                                  then k (RegisterParam
                                          (XmmReg s
