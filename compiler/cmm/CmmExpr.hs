@@ -14,6 +14,7 @@ module CmmExpr
     , currentTSOReg, currentNurseryReg, hpAllocReg, cccsReg
     , node, baseReg
     , VGcPtr(..)
+    , GlobalVecRegTy(..)
 
     , DefinerOfRegs, UserOfRegs
     , foldRegsDefd, foldRegsUsed
@@ -42,6 +43,7 @@ import Unique
 
 import Data.Set (Set)
 import Data.List
+import Data.Maybe (fromMaybe)
 import qualified Data.Set as Set
 
 -----------------------------------------------------------------------------
@@ -421,6 +423,8 @@ data GlobalReg
 
   | XmmReg                      -- 128-bit SIMD vector register
         {-# UNPACK #-} !Int     -- its number
+        (Maybe (Length, Width))
+        (Maybe GlobalVecRegTy)
 
   | YmmReg                      -- 256-bit SIMD vector register
         {-# UNPACK #-} !Int     -- its number
@@ -467,12 +471,15 @@ data GlobalReg
 
   deriving( Show )
 
+data GlobalVecRegTy = Integer | Float
+  deriving (Show, Eq)
+
 instance Eq GlobalReg where
    VanillaReg i _ == VanillaReg j _ = i==j -- Ignore type when seeking clashes
    FloatReg i == FloatReg j = i==j
    DoubleReg i == DoubleReg j = i==j
    LongReg i == LongReg j = i==j
-   XmmReg i == XmmReg j = i==j
+   XmmReg i mb grt == XmmReg j mb' grt' = i==j && mb == mb' && grt == grt'
    YmmReg i == YmmReg j = i==j
    ZmmReg i == ZmmReg j = i==j
    Sp == Sp = True
@@ -498,7 +505,8 @@ instance Ord GlobalReg where
    compare (FloatReg i)  (FloatReg  j) = compare i j
    compare (DoubleReg i) (DoubleReg j) = compare i j
    compare (LongReg i)   (LongReg   j) = compare i j
-   compare (XmmReg i)    (XmmReg    j) = compare i j
+   compare (XmmReg i _ _)
+           (XmmReg j _ _)              = compare i j
    compare (YmmReg i)    (YmmReg    j) = compare i j
    compare (ZmmReg i)    (ZmmReg    j) = compare i j
    compare Sp Sp = EQ
@@ -524,8 +532,8 @@ instance Ord GlobalReg where
    compare _ (DoubleReg _)    = GT
    compare (LongReg _) _      = LT
    compare _ (LongReg _)      = GT
-   compare (XmmReg _) _       = LT
-   compare _ (XmmReg _)       = GT
+   compare (XmmReg _ _ _) _   = LT
+   compare _ (XmmReg _ _ _)   = GT
    compare (YmmReg _) _       = LT
    compare _ (YmmReg _)       = GT
    compare (ZmmReg _) _       = LT
@@ -585,7 +593,10 @@ globalRegType _      (LongReg _)       = cmmBits W64
 -- NOTE:
 -- The below XMM, YMM, ZMM CmmTypes are not fully correct because an
 -- XMM can also hold 2 doubles or 16 Int8s etc, similarly for YMM, ZMM
-globalRegType _      (XmmReg _)        = cmmVec 2 (cmmFloat W64)
+globalRegType _      (XmmReg _ m ty)   = let (l,w) = fromMaybe (2, W64) m
+                                          in  case fromMaybe Float ty of
+                                                Integer -> cmmVec l (cmmBits w)
+                                                Float   -> cmmVec l (cmmFloat w)
 globalRegType _      (YmmReg _)        = cmmVec 8 (cmmBits W32)
 globalRegType _      (ZmmReg _)        = cmmVec 16 (cmmBits W32)
 

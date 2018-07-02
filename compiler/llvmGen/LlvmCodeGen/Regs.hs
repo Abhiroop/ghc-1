@@ -60,12 +60,12 @@ lmGlobalReg dflags suf reg
         DoubleReg 4    -> doubleGlobal $ "D4" ++ suf
         DoubleReg 5    -> doubleGlobal $ "D5" ++ suf
         DoubleReg 6    -> doubleGlobal $ "D6" ++ suf
-        XmmReg 1       -> xmmGlobal $ "XMM1" ++ suf
-        XmmReg 2       -> xmmGlobal $ "XMM2" ++ suf
-        XmmReg 3       -> xmmGlobal $ "XMM3" ++ suf
-        XmmReg 4       -> xmmGlobal $ "XMM4" ++ suf
-        XmmReg 5       -> xmmGlobal $ "XMM5" ++ suf
-        XmmReg 6       -> xmmGlobal $ "XMM6" ++ suf
+        XmmReg 1 _ _   -> xmmGlobal $ "XMM1" ++ suf
+        XmmReg 2 _ _   -> xmmGlobal $ "XMM2" ++ suf
+        XmmReg 3 _ _   -> xmmGlobal $ "XMM3" ++ suf
+        XmmReg 4 _ _   -> xmmGlobal $ "XMM4" ++ suf
+        XmmReg 5 _ _   -> xmmGlobal $ "XMM5" ++ suf
+        XmmReg 6 _ _   -> xmmGlobal $ "XMM6" ++ suf
         YmmReg 1       -> ymmGlobal $ "YMM1" ++ suf
         YmmReg 2       -> ymmGlobal $ "YMM2" ++ suf
         YmmReg 3       -> ymmGlobal $ "YMM3" ++ suf
