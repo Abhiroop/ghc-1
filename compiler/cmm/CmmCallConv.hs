@@ -65,12 +65,20 @@ assignArgumentsPos dflags off conv arg_ty reps = (stk_off, assignments)
                                     | otherwise      = int
         where vec = case (w, regs) of
                       (W128, (vs, fs, ds, ls, s:ss))
-                          | passVectorInReg W128 dflags -> let elt_ty = vecElemType ty
-                                                               l      = vecLength ty
-                                                               w      = typeWidth elt_ty
-                                                            in if isFloatType elt_ty
-                                                                then k (RegisterParam (XmmReg s (Just (l, w)) (Just Float)), (vs, fs, ds, ls, ss))
-                                                                else k (RegisterParam (XmmReg s (Just (l, w)) (Just Integer)), (vs, fs, ds, ls, ss))
+                        | passVectorInReg W128 dflags
+                          -> let elt_ty = vecElemType ty
+                                      l = vecLength ty
+                                      w = typeWidth elt_ty
+                              in if isFloatType elt_ty
+                                 then k (RegisterParam
+                                         (XmmReg s
+                                          (Just (l, w)) (Just Float)),
+                                         (vs, fs, ds, ls, ss))
+                                 else k (RegisterParam
+                                         (XmmReg s
+                                          (Just (l, w))
+                                          (Just Integer)),
+                                         (vs, fs, ds, ls, ss))
                       (W256, (vs, fs, ds, ls, s:ss))
                           | passVectorInReg W256 dflags -> k (RegisterParam (YmmReg s), (vs, fs, ds, ls, ss))
                       (W512, (vs, fs, ds, ls, s:ss))
@@ -213,11 +221,13 @@ nodeOnly = ([VanillaReg 1], [], [], [], [])
 -- only use this functionality in hand-written C-- code in the RTS.
 realArgRegsCover :: DynFlags -> [GlobalReg]
 realArgRegsCover dflags
-    | passFloatArgsInXmm dflags = map ($VGcPtr) (realVanillaRegs dflags) ++
-                                  realLongRegs dflags ++
-                                  map (\x -> XmmReg x Nothing Nothing) (realXmmRegNos dflags)
-    | otherwise                 = map ($VGcPtr) (realVanillaRegs dflags) ++
-                                  realFloatRegs dflags ++
-                                  realDoubleRegs dflags ++
-                                  realLongRegs dflags ++
-                                  map (\x -> XmmReg x Nothing Nothing) (realXmmRegNos dflags)
+    | passFloatArgsInXmm dflags
+      = map ($VGcPtr) (realVanillaRegs dflags) ++
+        realLongRegs dflags ++
+        map (\x -> XmmReg x Nothing Nothing) (realXmmRegNos dflags)
+    | otherwise
+      = map ($VGcPtr) (realVanillaRegs dflags) ++
+        realFloatRegs dflags ++
+        realDoubleRegs dflags ++
+        realLongRegs dflags ++
+        map (\x -> XmmReg x Nothing Nothing) (realXmmRegNos dflags)
