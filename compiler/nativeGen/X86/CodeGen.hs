@@ -100,6 +100,11 @@ sse4_2Enabled = do
   dflags <- getDynFlags
   return (isSse4_2Enabled dflags)
 
+sseEnabled :: NatM Bool
+sseEnabled = do
+  dflags <- getDynFlags
+  return (isSseEnabled dflags)
+
 avxEnabled :: NatM Bool
 avxEnabled = do
   dflags <- getDynFlags
@@ -536,15 +541,15 @@ getRegister' dflags is32Bit (CmmReg reg)
                use_avx <- avxEnabled
                let cmmregtype = cmmRegType dflags reg
                if isVecType cmmregtype
-                 then return (vectorRegister cmmregtype use_avx)
+                 then return (vectorRegister cmmregtype use_avx use_sse2)
                  else return (standardRegister cmmregtype use_avx use_sse2)
   where
-    vectorRegister crt ua
-      | ua = let vecfmt = cmmTypeFormat crt
-                 platform = targetPlatform dflags
-              in (Fixed vecfmt
-                  (getVecRegisterReg platform ua vecfmt reg) nilOL)
-      | otherwise = panic "Please enable the -mavx flag"
+    vectorRegister crt ua us
+      | ua || us  = let vecfmt   = cmmTypeFormat crt
+                        platform = targetPlatform dflags
+                     in (Fixed vecfmt
+                         (getVecRegisterReg platform True vecfmt reg) nilOL)
+      | otherwise = panic "Please enable the -mavx or -msse2 flag"
 
     standardRegister crt ua us =
       let fmt = cmmTypeFormat crt
@@ -689,13 +694,8 @@ getRegister' _ _ (CmmMachOp mop [x, y, z]) = do -- ternary MachOps
       Amode addr addr_code <- memConstant (widthInBytes w) lit
       let f        = VecFormat len FmtFloat W32
           imm      = litToImm offset
-          code dst
-            = case offset of
-                CmmInt 0 _ -> addr_code `snocOL`
-                              (VMOVU f (OpAddr addr) (OpReg dst))
-                CmmInt _ _ -> addr_code `snocOL`
-                              (INSERTPS f (OpImm imm) addr dst)
-                _ -> panic "Error in offset while packing"
+          code dst = addr_code `snocOL`
+                     (INSERTPS f (OpImm imm) addr dst)
        in return $ Any f code
     vector_float_pack len W64 _ (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
       = do
@@ -713,8 +713,9 @@ getRegister' _ _ (CmmMachOp mop [x, y, z]) = do -- ternary MachOps
       = pprPanic "Pack not supported for : " (ppr c)
 
 getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
-    sse2 <- sse2Enabled
-    avx  <- avxEnabled
+    sse2   <- sse2Enabled
+    sse    <- sseEnabled
+    avx    <- avxEnabled
     case mop of
       MO_F_Neg w
          | sse2      -> sse2NegCode w x
@@ -788,8 +789,10 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
       MO_VF_Mul {}        -> incorrectOperands
       MO_VF_Quot {}       -> incorrectOperands
 
-      MO_VF_Neg l w  | avx       -> vector_float_negate l w x
-                     | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Neg l w  | avx           -> vector_float_negate     l w x
+                     | sse && sse2   -> vector_float_negate_sse l w x
+                     | otherwise
+                       -> sorry "Please enable the -mavx or -msse, -msse2 flag"
 
       _other -> pprPanic "getRegister" (pprMachOp mop)
    where
@@ -850,8 +853,26 @@ getRegister' dflags is32Bit (CmmMachOp mop [x]) = do -- unary MachOps
           return (Any format code)
         vector_float_negate _ _ c = pprPanic "Negate not supported for " (ppr c)
 
+        vector_float_negate_sse :: Length -> Width -> CmmExpr -> NatM Register
+        vector_float_negate_sse l w (CmmReg r) = do
+          dflags               <- getDynFlags
+          tmp                  <- getNewRegNat (VecFormat l FmtFloat w)
+          let format   = case w of
+                           W32 -> VecFormat l FmtFloat w
+                           W64 -> VecFormat l FmtDouble w
+                           _ -> pprPanic "Cannot negate vector of width" (ppr w)
+              platform = targetPlatform dflags
+              reg      = getVecRegisterReg platform True format r
+              code dst = (unitOL $ XOR format (OpReg tmp) (OpReg tmp)) `snocOL`
+                         (MOVU format (OpReg tmp) (OpReg dst)) `snocOL`
+                         (SUB format (OpReg reg) (OpReg dst))
+          return (Any format code)
+        vector_float_negate_sse _ _ c = pprPanic "Negate not supported for " (ppr c)
+
 getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
+  sse4_1 <- sse4_1Enabled
   sse2   <- sse2Enabled
+  sse    <- sseEnabled
   avx    <- avxEnabled
   case mop of
       MO_F_Eq _ -> condFltReg is32Bit EQQ x y
@@ -915,29 +936,45 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VS_Rem {}     -> needLlvm
       MO_VS_Neg {}     -> needLlvm
 
-      MO_VF_Broadcast l W32 | avx       -> vector_float_broadcast l W32 x y
-                            | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Broadcast l W32 | avx       -> vector_float_broadcast     l W32 x y
+                            | sse4_1    -> vector_float_broadcast_sse l W32 x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse4 flag"
 
       MO_VF_Broadcast l W64 | sse2      -> vector_float_broadcast l W64 x y
                             | otherwise -> sorry "Please enable the -msse2 flag"
 
-      MO_VF_Extract l W32   | avx       -> vector_float_unpack l W32 x y
-                            | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Extract l W32   | avx       -> vector_float_unpack     l W32 x y
+                            | sse       -> vector_float_unpack_sse l W32 x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse flag"
 
       MO_VF_Extract l W64   | sse2      -> vector_float_unpack l W64 x y
                             | otherwise -> sorry "Please enable the -msse2 flag"
 
-      MO_VF_Add l w       | avx       -> vector_float_op A l w x y
-                          | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Add l w         | avx              -> vector_float_op     A l w x y
+                            | sse  && w == W32 -> vector_float_op_sse A l w x y
+                            | sse2 && w == W64 -> vector_float_op_sse A l w x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse flag"
 
-      MO_VF_Sub l w       | avx       -> vector_float_op S l w x y
-                          | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Sub l w         | avx              -> vector_float_op     S l w x y
+                            | sse  && w == W32 -> vector_float_op_sse S l w x y
+                            | sse2 && w == W64 -> vector_float_op_sse S l w x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse flag"
 
-      MO_VF_Mul l w       | avx       -> vector_float_op M l w x y
-                          | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Mul l w         | avx              -> vector_float_op     M l w x y
+                            | sse  && w == W32 -> vector_float_op_sse M l w x y
+                            | sse2 && w == W64 -> vector_float_op_sse M l w x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse flag"
 
-      MO_VF_Quot l w      | avx       -> vector_float_op D l w x y
-                          | otherwise -> sorry "Please enable the -mavx flag"
+      MO_VF_Quot l w        | avx              -> vector_float_op     D l w x y
+                            | sse  && w == W32 -> vector_float_op_sse D l w x y
+                            | sse2 && w == W64 -> vector_float_op_sse D l w x y
+                            | otherwise
+                              -> sorry "Please enable the -mavx or -msse flag"
 
       MO_VF_Insert {}                  -> incorrectOperands
       MO_VF_Neg {}                     -> incorrectOperands
@@ -1049,6 +1086,35 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       return (Any format code)
     vector_float_op _ _ _ c1 c2
       = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
+
+    vector_float_op_sse :: VectorArithInstns
+                        -> Length
+                        -> Width
+                        -> CmmExpr
+                        -> CmmExpr
+                        -> NatM Register
+    vector_float_op_sse op l w (CmmReg r1) (CmmReg r2) = do
+      dflags <- getDynFlags
+      let format   = case w of
+                       W32 -> VecFormat l FmtFloat  W32
+                       W64 -> VecFormat l FmtDouble W64
+                       _ -> pprPanic "Operation not supported for width " (ppr w)
+          platform = targetPlatform dflags
+          reg1     = getVecRegisterReg platform True format r1
+          reg2     = getVecRegisterReg platform True format r2
+          code dst = case op of
+            A -> arithInstr ADD
+            S -> arithInstr SUB
+            M -> arithInstr MUL
+            D -> arithInstr FDIV
+            where
+              -- opcode src2 src1 <==> src1 = src1 `opcode` src2
+              arithInstr instr
+                = unitOL (MOVU format (OpReg reg1) (OpReg dst)) `snocOL`
+                  (instr format (OpReg reg2) (OpReg dst))
+      return (Any format code)
+    vector_float_op_sse _ _ _ c1 c2
+      = pprPanic "Incorrect type of registers" ((ppr c1) <+> (ppr c2))
     --------------------
     vector_float_unpack :: Length
                         -> Width
@@ -1086,6 +1152,28 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
     -----------------------
+
+    vector_float_unpack_sse :: Length
+                            -> Width
+                            -> CmmExpr
+                            -> CmmExpr
+                            -> NatM Register
+    vector_float_unpack_sse l W32 (CmmReg reg) (CmmLit lit)
+      = do
+      dflags <- getDynFlags
+      let format   = VecFormat l FmtFloat W32
+          platform = targetPlatform dflags
+          r        = getVecRegisterReg platform True format reg
+          imm      = litToImm lit
+          code dst
+            = case lit of
+                CmmInt 0 _ -> unitOL $ MOVU format (OpReg r) (OpReg dst)
+                CmmInt _ _ -> unitOL $ PSHUFD format (OpImm imm) (OpReg r) dst
+                _          -> panic "Error in offset while unpacking"
+      return (Any format code)
+    vector_float_unpack_sse _ _ c _
+      = pprPanic "Unpack not supported for : " (ppr c)
+    -----------------------
     vector_float_broadcast :: Length
                            -> Width
                            -> CmmExpr
@@ -1104,6 +1192,28 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                                 (MOVL f (OpAddr addr) (OpReg r)) `snocOL`
                                 (MOVH f (OpAddr addr) (OpReg r)))
     vector_float_broadcast _ _ c _
+      = pprPanic "Broadcast not supported for : " (ppr c)
+    -----------------------
+    vector_float_broadcast_sse :: Length
+                               -> Width
+                               -> CmmExpr
+                               -> CmmExpr
+                               -> NatM Register
+    vector_float_broadcast_sse len W32 (CmmLit lit@(CmmFloat _ w)) _
+      = do
+      Amode addr addr_code <- memConstant (widthInBytes w) lit
+      let f        = VecFormat len FmtFloat W32
+          imm1     = litToImm (CmmInt   0 W32)
+          imm2     = litToImm (CmmInt  80 W32)
+          imm3     = litToImm (CmmInt 160 W32)
+          imm4     = litToImm (CmmInt 240 W32)
+          code dst = addr_code `snocOL`
+                     (INSERTPS f (OpImm imm1) addr dst) `snocOL`
+                     (INSERTPS f (OpImm imm2) addr dst) `snocOL`
+                     (INSERTPS f (OpImm imm3) addr dst) `snocOL`
+                     (INSERTPS f (OpImm imm4) addr dst)
+       in return $ Any f code
+    vector_float_broadcast_sse _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)
     -----------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
@@ -1149,12 +1259,15 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
 getRegister' _ _ (CmmLoad mem pk)
   | isVecType pk = do
       use_avx <- avxEnabled
+      use_sse <- sseEnabled
       Amode addr mem_code <- getAmode mem
       let format = cmmTypeFormat pk
           code dst
             | use_avx = mem_code `snocOL`
                         VMOVU format (OpAddr addr) (OpReg dst)
-            | otherwise = pprPanic (unlines ["avx flag not enabled",
+            | use_sse = mem_code `snocOL`
+                        MOVU format (OpAddr addr) (OpReg dst)
+            | otherwise = pprPanic (unlines ["avx or sse flag not enabled",
                                             "for loading to "])
                           (ppr pk)
       return (Any format code)
@@ -1848,19 +1961,25 @@ assignMem_VecCode pk addr src = do
   (src_reg, src_code) <- getNonClobberedReg src
   Amode addr addr_code <- getAmode addr
   use_avx <- avxEnabled
+  use_sse <- sseEnabled
   let
         code | use_avx   = src_code `appOL`
                            addr_code `snocOL`
                            (VMOVU pk (OpReg src_reg) (OpAddr addr))
-             | otherwise = sorry "Please enable the -mavx flag"
+             | use_sse   = src_code `appOL`
+                           addr_code `snocOL`
+                           (MOVU pk (OpReg src_reg) (OpAddr addr))
+             | otherwise = sorry "Please enable the -mavx or -msse flag"
   return code
 
 assignReg_VecCode format reg src = do
   use_avx <- avxEnabled
+  use_sse <- sseEnabled
   src_code <- getAnyReg src
   dflags <- getDynFlags
   let platform = targetPlatform dflags
-  return (src_code (getVecRegisterReg platform use_avx format reg))
+      flag     = use_avx || use_sse
+  return (src_code (getVecRegisterReg platform flag format reg))
 
 genJump :: CmmExpr{-the branch target-} -> [Reg] -> NatM InstrBlock
 

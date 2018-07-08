@@ -367,6 +367,7 @@ data Instr
 
         -- move operations
         | VMOVU       Format Operand Operand
+        | MOVU        Format Operand Operand
         | MOVL        Format Operand Operand
         | MOVH        Format Operand Operand
 
@@ -381,6 +382,7 @@ data Instr
 
         -- Shuffle
         | VPSHUFD    Format Operand Operand Reg
+        | PSHUFD     Format Operand Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -509,6 +511,7 @@ x86_regUsageOfInstr platform instr
       -> mkRU ((use_R off []) ++ (use_EA addr [])) [dst]
 
     VMOVU        _ src dst   -> mkRU (use_R src []) (use_R dst [])
+    MOVU         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVL         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVH         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
@@ -519,6 +522,8 @@ x86_regUsageOfInstr platform instr
     VDIV         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
 
     VPSHUFD      _ off src dst
+      -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
+    PSHUFD       _ off src dst
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
 
     _other              -> panic "regUsage: unrecognised instr"
@@ -710,6 +715,7 @@ x86_patchRegsOfInstr instr env
       -> INSERTPS fmt (patchOp off) (lookupAddr addr) (env dst)
 
     VMOVU      fmt src dst   -> VMOVU fmt (patchOp src) (patchOp dst)
+    MOVU       fmt src dst   -> MOVU  fmt (patchOp src) (patchOp dst)
     MOVL       fmt src dst   -> MOVL  fmt (patchOp src) (patchOp dst)
     MOVH       fmt src dst   -> MOVH  fmt (patchOp src) (patchOp dst)
     VPXOR      fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
@@ -721,6 +727,8 @@ x86_patchRegsOfInstr instr env
 
     VPSHUFD      fmt off src dst
       -> VPSHUFD fmt (patchOp off) (patchOp src) (env dst)
+    PSHUFD       fmt off src dst
+      -> PSHUFD  fmt (patchOp off) (patchOp src) (env dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where

@@ -767,6 +767,8 @@ pprInstr (VBROADCAST format from to)
   = pprBroadcast (sLit "vbroadcast") format from to
 pprInstr (VMOVU format from to)
   = pprFormatOpOp (sLit "vmovu") format from to
+pprInstr (MOVU format from to)
+  = pprFormatOpOp (sLit "movu") format from to
 pprInstr (MOVL format from to)
   = pprFormatOpOp (sLit "movl") format from to
 pprInstr (MOVH format from to)
@@ -779,6 +781,9 @@ pprInstr (INSERTPS format offset addr dst)
   = pprInsert (sLit "insertps") format offset addr dst
 pprInstr (VPSHUFD format offset src dst)
   = pprShuf (sLit "vpshufd") format offset src dst
+pprInstr (PSHUFD format offset src dst)
+  = pprShuf (sLit "pshufd") format offset src dst
+
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
 pprInstr (MUL2 format op) = pprFormatOp (sLit "mul") format op
