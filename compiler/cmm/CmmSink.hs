@@ -425,7 +425,7 @@ tryToInline dflags live node assigs = go usages node emptyLRegSet assigs
 
   go _usages node _skipped [] = (node, [])
 
-  go usages node skipped (a@(l@(LocalReg _ ct),rhs,_) : rest)
+  go usages node skipped (a@(l,rhs,_) : rest)
    | cannot_inline           = dont_inline
    | occurs_none             = discard  -- Note [discard during inlining]
    | occurs_once             = inline_and_discard
@@ -451,7 +451,6 @@ tryToInline dflags live node assigs = go usages node emptyLRegSet assigs
         cannot_inline = skipped `regsUsedIn` rhs -- Note [dependent assignments]
                         || l `elemLRegSet` skipped
                         || not (okToInline dflags rhs node)
-                        || isVecCatType ct
 
         l_usages = lookupUFM usages l
         l_live   = l `elemRegSet` live

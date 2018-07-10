@@ -15,6 +15,7 @@ import PprCmm ()
 import DynFlags
 import Platform
 import Outputable
+
 -- Calculate the 'GlobalReg' or stack locations for function call
 -- parameters as used by the Cmm calling convention.
 

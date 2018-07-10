@@ -1715,12 +1715,13 @@ doVecPackOp maybe_pre_write_cast ty z es res = do
         emitAssign (CmmLocal res) (CmmReg (CmmLocal src))
 
     vecPack src (e : es) i = do
-        if isFloatType (vecElemType ty)
-          then emitAssign (CmmLocal src) (CmmMachOp (MO_VF_Insert len wid)
-                                           [CmmReg (CmmLocal src), cast e, iLit])
-          else emitAssign (CmmLocal src) (CmmMachOp (MO_V_Insert len wid)
-                                           [CmmReg (CmmLocal src), cast e, iLit])
-        vecPack src es (i + 1)
+      dst <- newTemp ty
+      if isFloatType (vecElemType ty)
+        then emitAssign (CmmLocal dst) (CmmMachOp (MO_VF_Insert len wid)
+                                         [CmmReg (CmmLocal src), cast e, iLit])
+        else emitAssign (CmmLocal dst) (CmmMachOp (MO_V_Insert len wid)
+                                         [CmmReg (CmmLocal src), cast e, iLit])
+      vecPack dst es (i + 1)
       where
         -- vector indices are always 32-bits
         iLit = CmmLit (CmmInt ((toInteger i) * 80) W32)
