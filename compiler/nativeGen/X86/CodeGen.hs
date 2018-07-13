@@ -692,20 +692,22 @@ getRegister' _ _ (CmmMachOp mop [x, y, z]) = do -- ternary MachOps
                       -> CmmExpr
                       -> CmmExpr
                       -> NatM Register
-    vector_float_pack len W32 expr (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
+    vector_float_pack len W32 expr1 expr2 (CmmLit offset)
       = do
-      Amode addr addr_code <- memConstant (widthInBytes w) lit
-      (r, exp) <- getSomeReg expr
+      --Amode addr addr_code <- getAmode expr2
+      fn          <- getAnyReg expr1
+      (r2, exp2)  <- getSomeReg expr2
+      tmp <- getNewRegNat (VecFormat len FmtFloat W32)
       let f        = VecFormat len FmtFloat W32
           imm      = litToImm offset
-          code dst = exp `appOL` addr_code `snocOL`
-                     (INSERTPS f (OpImm imm) addr r) `snocOL`
-                     (MOVU f (OpReg r) (OpReg dst))
-       in return $ Any f code
-    vector_float_pack len W64 expr (CmmLit lit@(CmmFloat _ w)) (CmmLit offset)
+          code     = exp2 `appOL`
+                     (fn tmp) `snocOL`
+                     (INSERTPS f (OpImm imm) (OpReg r2) tmp)
+       in return $ Fixed f tmp code
+    vector_float_pack len W64 expr1 expr2 (CmmLit offset)
       = do
-      Amode addr addr_code <- memConstant (widthInBytes w) lit
-      (r, exp) <- getSomeReg expr
+      Amode addr addr_code <- getAmode expr2
+      (r, exp) <- getSomeReg expr1
       let f = VecFormat len FmtDouble W64
           code dst
             = case offset of
@@ -1173,14 +1175,14 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                            -> CmmExpr
                            -> CmmExpr
                            -> NatM Register
-    vector_float_broadcast len W32 (CmmLit lit@(CmmFloat _ w)) _
+    vector_float_broadcast len W32 expr _
       = do
-      Amode addr code <- memConstant (widthInBytes w) lit
+      Amode addr code <- getAmode expr
       let f = VecFormat len FmtFloat W32
        in return $ Any f (\r -> code `snocOL` (VBROADCAST f addr r))
-    vector_float_broadcast len W64 (CmmLit lit@(CmmFloat _ w)) _
+    vector_float_broadcast len W64 expr _
       = do
-      Amode addr code <- memConstant (widthInBytes w) lit
+      Amode addr code <- getAmode expr
       let f = VecFormat len FmtDouble W64
        in return $ Any f (\r -> code `snocOL`
                                 (MOVL f (OpAddr addr) (OpReg r)) `snocOL`
@@ -1193,19 +1195,19 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                                -> CmmExpr
                                -> CmmExpr
                                -> NatM Register
-    vector_float_broadcast_sse len W32 (CmmLit lit@(CmmFloat _ w)) _
+    vector_float_broadcast_sse len W32 expr _
       = do
-      Amode addr addr_code <- memConstant (widthInBytes w) lit
+      Amode addr addr_code <- getAmode expr
       let f        = VecFormat len FmtFloat W32
           imm1     = litToImm (CmmInt   0 W32)
           imm2     = litToImm (CmmInt  80 W32)
           imm3     = litToImm (CmmInt 160 W32)
           imm4     = litToImm (CmmInt 240 W32)
           code dst = addr_code `snocOL`
-                     (INSERTPS f (OpImm imm1) addr dst) `snocOL`
-                     (INSERTPS f (OpImm imm2) addr dst) `snocOL`
-                     (INSERTPS f (OpImm imm3) addr dst) `snocOL`
-                     (INSERTPS f (OpImm imm4) addr dst)
+                     (INSERTPS f (OpImm imm1) (OpAddr addr) dst) `snocOL`
+                     (INSERTPS f (OpImm imm2) (OpAddr addr) dst) `snocOL`
+                     (INSERTPS f (OpImm imm3) (OpAddr addr) dst) `snocOL`
+                     (INSERTPS f (OpImm imm4) (OpAddr addr) dst)
        in return $ Any f code
     vector_float_broadcast_sse _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)
@@ -1485,6 +1487,9 @@ getAmode' _ (CmmMachOp (MO_Add _)
 
 getAmode' _ (CmmMachOp (MO_Add _) [x,y])
   = x86_complex_amode x y 0 0
+
+getAmode' _ (CmmLit lit@(CmmFloat _ w))
+  = memConstant (widthInBytes w) lit
 
 getAmode' is32Bit (CmmLit lit) | is32BitLit is32Bit lit
   = return (Amode (ImmAddr (litToImm lit) 0) nilOL)
