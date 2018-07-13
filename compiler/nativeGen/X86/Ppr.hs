@@ -783,6 +783,8 @@ pprInstr (VPSHUFD format offset src dst)
   = pprShuf (sLit "vpshufd") format offset src dst
 pprInstr (PSHUFD format offset src dst)
   = pprShuf (sLit "pshufd") format offset src dst
+pprInstr (PSLLDQ format offset dst)
+  = pprShiftLeft (sLit "pslldq") format offset dst
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1438,13 +1440,13 @@ pprXor name format reg1 reg2 reg3
         pprReg format reg3
     ]
 
-pprInsert :: LitString -> Format -> Operand -> AddrMode -> Reg -> SDoc
-pprInsert name format off addr dst
+pprInsert :: LitString -> Format -> Operand -> Operand -> Reg -> SDoc
+pprInsert name format off src dst
   = hcat [
         pprGenMnemonic name format,
         pprOperand format off,
         comma,
-        pprAddr addr,
+        pprOperand format src,
         comma,
         pprReg format dst
     ]
@@ -1458,4 +1460,13 @@ pprShuf name format op1 op2 reg3
         pprOperand format op2,
         comma,
         pprReg format reg3
+    ]
+
+pprShiftLeft :: LitString -> Format -> Operand -> Reg -> SDoc
+pprShiftLeft name format off reg
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format off,
+        comma,
+        pprReg format reg
     ]

@@ -363,7 +363,7 @@ data Instr
         -- Constructors and deconstructors
         | VBROADCAST  Format AddrMode Reg
         | VEXTRACT    Format Operand Reg Operand
-        | INSERTPS    Format Operand AddrMode Reg
+        | INSERTPS    Format Operand Operand Reg
 
         -- move operations
         | VMOVU       Format Operand Operand
@@ -383,6 +383,9 @@ data Instr
         -- Shuffle
         | VPSHUFD    Format Operand Operand Reg
         | PSHUFD     Format Operand Operand Reg
+
+        -- Shift
+        | PSLLDQ     Format Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -507,8 +510,8 @@ x86_regUsageOfInstr platform instr
     -- vector instructions
     VBROADCAST _ src dst   -> mkRU (use_EA src []) [dst]
     VEXTRACT     _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
-    INSERTPS     _ off addr dst
-      -> mkRU ((use_R off []) ++ (use_EA addr [])) [dst]
+    INSERTPS     _ off src dst
+      -> mkRU ((use_R off []) ++ (use_R src [])) [dst]
 
     VMOVU        _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVU         _ src dst   -> mkRU (use_R src []) (use_R dst [])
@@ -525,6 +528,8 @@ x86_regUsageOfInstr platform instr
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
     PSHUFD       _ off src dst
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
+
+    PSLLDQ       _ off dst -> mkRU (use_R off []) [dst]
 
     _other              -> panic "regUsage: unrecognised instr"
  where
@@ -711,8 +716,8 @@ x86_patchRegsOfInstr instr env
     VBROADCAST   fmt src dst   -> VBROADCAST fmt (lookupAddr src) (env dst)
     VEXTRACT     fmt off src dst
       -> VEXTRACT fmt (patchOp off) (env src) (patchOp dst)
-    INSERTPS    fmt off addr dst
-      -> INSERTPS fmt (patchOp off) (lookupAddr addr) (env dst)
+    INSERTPS    fmt off src dst
+      -> INSERTPS fmt (patchOp off) (patchOp src) (env dst)
 
     VMOVU      fmt src dst   -> VMOVU fmt (patchOp src) (patchOp dst)
     MOVU       fmt src dst   -> MOVU  fmt (patchOp src) (patchOp dst)
@@ -729,6 +734,8 @@ x86_patchRegsOfInstr instr env
       -> VPSHUFD fmt (patchOp off) (patchOp src) (env dst)
     PSHUFD       fmt off src dst
       -> PSHUFD  fmt (patchOp off) (patchOp src) (env dst)
+    PSLLDQ       fmt off dst
+      -> PSLLDQ  fmt (patchOp off) (env dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where
