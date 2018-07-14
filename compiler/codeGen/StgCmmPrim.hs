@@ -1670,23 +1670,21 @@ doVecBroadcastOp :: Maybe MachOp  -- Cast from element to vector component
                  -> CmmExpr     -- Elements
                  -> CmmFormal     -- Destination for result
                  -> FCode ()
-doVecBroadcastOp maybe_pre_write_cast ty _ es res = do
-    --emitAssign (CmmLocal dst) z
-    vecBroadcast es 0
+doVecBroadcastOp maybe_pre_write_cast ty z es res = do
+    dst <- newTemp ty
+    emitAssign (CmmLocal dst) z
+    vecBroadcast dst es 0
   where
-    vecBroadcast :: CmmExpr -> Int -> FCode ()
-    vecBroadcast e i = do
+    vecBroadcast :: CmmFormal -> CmmExpr -> Int -> FCode ()
+    vecBroadcast src e _ = do
         dst <- newTemp ty
         if isFloatType (vecElemType ty)
           then emitAssign (CmmLocal dst) (CmmMachOp (MO_VF_Broadcast len wid)
-                                                    [cast e, iLit])
+                                                    [CmmReg (CmmLocal src), cast e])
                --TODO : Add the MachOp MO_V_Broadcast
           else emitAssign (CmmLocal dst) (CmmMachOp (MO_V_Insert len wid)
-                                                    [cast e, iLit])
+                                                    [CmmReg (CmmLocal src), cast e])
         emitAssign (CmmLocal res) (CmmReg (CmmLocal dst))
-      where
-        -- vector indices are always 32-bits
-        iLit = CmmLit (CmmInt (toInteger i) W32)
 
     cast :: CmmExpr -> CmmExpr
     cast val = case maybe_pre_write_cast of
@@ -1724,7 +1722,7 @@ doVecPackOp maybe_pre_write_cast ty z es res = do
       vecPack dst es (i + 1)
       where
         -- vector indices are always 32-bits
-        iLit = CmmLit (CmmInt ((toInteger i) * 80) W32)
+        iLit = CmmLit (CmmInt ((toInteger i) * 16) W32)
 
     cast :: CmmExpr -> CmmExpr
     cast val = case maybe_pre_write_cast of

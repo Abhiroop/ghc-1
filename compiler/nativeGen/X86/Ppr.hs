@@ -785,6 +785,8 @@ pprInstr (PSHUFD format offset src dst)
   = pprShuf (sLit "pshufd") format offset src dst
 pprInstr (PSLLDQ format offset dst)
   = pprShiftLeft (sLit "pslldq") format offset dst
+pprInstr (PSRLDQ format offset dst)
+  = pprShiftRight (sLit "psrldq") format offset dst
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
@@ -1464,6 +1466,15 @@ pprShuf name format op1 op2 reg3
 
 pprShiftLeft :: LitString -> Format -> Operand -> Reg -> SDoc
 pprShiftLeft name format off reg
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format off,
+        comma,
+        pprReg format reg
+    ]
+
+pprShiftRight :: LitString -> Format -> Operand -> Reg -> SDoc
+pprShiftRight name format off reg
   = hcat [
         pprGenMnemonic name format,
         pprOperand format off,

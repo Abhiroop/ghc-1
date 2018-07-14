@@ -504,9 +504,9 @@ machOpArgReps dflags op =
     MO_VU_Rem  _ r      -> [r,r]
 
     -- offset is always W32 as mentioned in StgCmmPrim.hs
-    MO_VF_Broadcast _ r -> [r,W32]
-    MO_VF_Insert  l r   -> [vecwidth l r, r, W32]
-    MO_VF_Extract l r   -> [vecwidth l r, W32]
+    MO_VF_Broadcast l r -> [vecwidth l r, r]
+    MO_VF_Insert    l r -> [vecwidth l r, r, W32]
+    MO_VF_Extract   l r -> [vecwidth l r, W32]
 
     -- NOTE: The below is owing to the fact that floats use the SSE registers
     MO_VF_Add  l w      -> [vecwidth l w, vecwidth l w]

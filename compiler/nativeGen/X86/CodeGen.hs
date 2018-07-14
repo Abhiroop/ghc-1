@@ -694,30 +694,40 @@ getRegister' _ _ (CmmMachOp mop [x, y, z]) = do -- ternary MachOps
                       -> NatM Register
     vector_float_pack len W32 expr1 expr2 (CmmLit offset)
       = do
-      --Amode addr addr_code <- getAmode expr2
       fn          <- getAnyReg expr1
-      (r2, exp2)  <- getSomeReg expr2
-      tmp <- getNewRegNat (VecFormat len FmtFloat W32)
+      (r, exp)    <- getSomeReg expr2
       let f        = VecFormat len FmtFloat W32
           imm      = litToImm offset
-          code     = exp2 `appOL`
-                     (fn tmp) `snocOL`
-                     (INSERTPS f (OpImm imm) (OpReg r2) tmp)
-       in return $ Fixed f tmp code
+          code dst = exp `appOL`
+                     (fn dst) `snocOL`
+                     (INSERTPS f (OpImm imm) (OpReg r) dst)
+       in return $ Any f code
     vector_float_pack len W64 expr1 expr2 (CmmLit offset)
       = do
       Amode addr addr_code <- getAmode expr2
       (r, exp) <- getSomeReg expr1
+
+      -- fn <- getAnyReg expr1
+      -- (r, exp) <- getSomeReg expr2
       let f = VecFormat len FmtDouble W64
           code dst
             = case offset of
                 CmmInt 0  _ -> exp `appOL` addr_code `snocOL`
                                (MOVL f (OpAddr addr) (OpReg r)) `snocOL`
                                (MOVU f (OpReg r) (OpReg dst))
-                CmmInt 80 _ -> exp `appOL` addr_code `snocOL`
+                CmmInt 16 _ -> exp `appOL` addr_code `snocOL`
                                (MOVH f (OpAddr addr) (OpReg r)) `snocOL`
                                (MOVU f (OpReg r) (OpReg dst))
                 _ -> panic "Error in offset while packing"
+          -- code dst
+          --   = case offset of
+          --       CmmInt 0  _ -> exp `appOL`
+          --                      (fn dst) `snocOL`
+          --                      (MOVL f (OpReg r) (OpReg dst))
+          --       CmmInt 16 _ -> exp `appOL`
+          --                      (fn dst) `snocOL`
+          --                      (MOVH f (OpReg r) (OpReg dst))
+          --       _ -> panic "Error in offset while packing"
        in return $ Any f code
     vector_float_pack _ _ _ c _
       = pprPanic "Pack not supported for : " (ppr c)
@@ -1175,16 +1185,27 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                            -> CmmExpr
                            -> CmmExpr
                            -> NatM Register
-    vector_float_broadcast len W32 expr _
+    vector_float_broadcast len W32 expr1 expr2
       = do
-      Amode addr code <- getAmode expr
-      let f = VecFormat len FmtFloat W32
-       in return $ Any f (\r -> code `snocOL` (VBROADCAST f addr r))
-    vector_float_broadcast len W64 expr _
+      dflags    <- getDynFlags
+      fn        <- getAnyReg expr1
+      (r', exp) <- getSomeReg expr2
+      let f    = VecFormat len FmtFloat W32
+          addr = spRel dflags 0
+       in return $ Any f (\r -> exp    `appOL`
+                                (fn r) `snocOL`
+                                (MOVU f (OpReg r') (OpAddr addr)) `snocOL`
+                                (VBROADCAST f addr r))
+    vector_float_broadcast len W64 expr1 expr2
       = do
-      Amode addr code <- getAmode expr
-      let f = VecFormat len FmtDouble W64
-       in return $ Any f (\r -> code `snocOL`
+      dflags    <- getDynFlags
+      fn        <- getAnyReg  expr1
+      (r', exp) <- getSomeReg expr2
+      let f    = VecFormat len FmtDouble W64
+          addr = spRel dflags 0
+       in return $ Any f (\r -> exp    `appOL`
+                                (fn r) `snocOL`
+                                (MOVU f (OpReg r') (OpAddr addr)) `snocOL`
                                 (MOVL f (OpAddr addr) (OpReg r)) `snocOL`
                                 (MOVH f (OpAddr addr) (OpReg r)))
     vector_float_broadcast _ _ c _
@@ -1195,15 +1216,20 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                                -> CmmExpr
                                -> CmmExpr
                                -> NatM Register
-    vector_float_broadcast_sse len W32 expr _
+    vector_float_broadcast_sse len W32 expr1 expr2
       = do
-      Amode addr addr_code <- getAmode expr
+      dflags   <- getDynFlags
+      fn       <- getAnyReg  expr1
+      (r, exp) <- getSomeReg expr2
       let f        = VecFormat len FmtFloat W32
+          addr     = spRel dflags 0
           imm1     = litToImm (CmmInt   0 W32)
-          imm2     = litToImm (CmmInt  80 W32)
-          imm3     = litToImm (CmmInt 160 W32)
-          imm4     = litToImm (CmmInt 240 W32)
-          code dst = addr_code `snocOL`
+          imm2     = litToImm (CmmInt  16 W32)
+          imm3     = litToImm (CmmInt  32 W32)
+          imm4     = litToImm (CmmInt  48 W32)
+          code dst = exp `appOL`
+                     (fn dst) `snocOL`
+                     (MOVU f (OpReg r) (OpAddr addr)) `snocOL`
                      (INSERTPS f (OpImm imm1) (OpAddr addr) dst) `snocOL`
                      (INSERTPS f (OpImm imm2) (OpAddr addr) dst) `snocOL`
                      (INSERTPS f (OpImm imm3) (OpAddr addr) dst) `snocOL`

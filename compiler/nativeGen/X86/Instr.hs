@@ -386,6 +386,7 @@ data Instr
 
         -- Shift
         | PSLLDQ     Format Operand Reg
+        | PSRLDQ     Format Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -511,7 +512,7 @@ x86_regUsageOfInstr platform instr
     VBROADCAST _ src dst   -> mkRU (use_EA src []) [dst]
     VEXTRACT     _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
     INSERTPS     _ off src dst
-      -> mkRU ((use_R off []) ++ (use_R src [])) [dst]
+      -> mkRU ((use_R off []) ++ (use_R src []) ++ [dst]) [dst]
 
     VMOVU        _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVU         _ src dst   -> mkRU (use_R src []) (use_R dst [])
@@ -530,6 +531,7 @@ x86_regUsageOfInstr platform instr
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
 
     PSLLDQ       _ off dst -> mkRU (use_R off []) [dst]
+    PSRLDQ       _ off dst -> mkRU (use_R off []) [dst]
 
     _other              -> panic "regUsage: unrecognised instr"
  where
@@ -736,6 +738,8 @@ x86_patchRegsOfInstr instr env
       -> PSHUFD  fmt (patchOp off) (patchOp src) (env dst)
     PSLLDQ       fmt off dst
       -> PSLLDQ  fmt (patchOp off) (env dst)
+    PSRLDQ       fmt off dst
+      -> PSRLDQ  fmt (patchOp off) (env dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where
