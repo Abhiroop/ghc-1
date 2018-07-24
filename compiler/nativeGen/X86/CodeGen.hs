@@ -3022,7 +3022,7 @@ genCCall64' dflags target dest_regs args = do
              push_args rest code'
 
            | otherwise = do
-             ASSERT(width == W64) return ()
+             ASSERT(width == W64 || width == W32) return ()
              (arg_op, arg_code) <- getOperand arg
              delta <- getDeltaNat
              setDeltaNat (delta-arg_size)
