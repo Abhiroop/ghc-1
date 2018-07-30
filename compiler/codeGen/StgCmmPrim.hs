@@ -902,6 +902,9 @@ callishPrimOpSupported dflags op
                         || llvm      -> Left (MO_S_QuotRem W16)
                      | otherwise     -> Right (genericIntQuotRemOp W16)
 
+      Int32QuotRemOp | (ncg && x86ish)
+                        || llvm      -> Left (MO_S_QuotRem W32)
+                     | otherwise     -> Right (genericIntQuotRemOp W32)
 
       WordQuotRemOp  | ncg && (x86ish || ppc) ->
                          Left (MO_U_QuotRem  (wordWidth dflags))
@@ -920,6 +923,10 @@ callishPrimOpSupported dflags op
       Word16QuotRemOp| (ncg && x86ish)
                         || llvm      -> Left (MO_U_QuotRem W16)
                      | otherwise     -> Right (genericWordQuotRemOp W16)
+
+      Word32QuotRemOp| (ncg && x86ish)
+                        || llvm      -> Left (MO_U_QuotRem W32)
+                     | otherwise     -> Right (genericWordQuotRemOp W32)
 
       WordAdd2Op     | (ncg && (x86ish
                                 || ppc))
@@ -1414,6 +1421,42 @@ translateOp _      Word16GtOp       = Just (MO_U_Gt W16)
 translateOp _      Word16LeOp       = Just (MO_U_Le W16)
 translateOp _      Word16LtOp       = Just (MO_U_Lt W16)
 translateOp _      Word16NeOp       = Just (MO_Ne W16)
+
+-- Int32# signed ops
+
+translateOp dflags Int32Extend     = Just (MO_SS_Conv W32 (wordWidth dflags))
+translateOp dflags Int32Narrow     = Just (MO_SS_Conv (wordWidth dflags) W32)
+translateOp _      Int32NegOp      = Just (MO_S_Neg W32)
+translateOp _      Int32AddOp      = Just (MO_Add W32)
+translateOp _      Int32SubOp      = Just (MO_Sub W32)
+translateOp _      Int32MulOp      = Just (MO_Mul W32)
+translateOp _      Int32QuotOp     = Just (MO_S_Quot W32)
+translateOp _      Int32RemOp      = Just (MO_S_Rem W32)
+
+translateOp _      Int32EqOp       = Just (MO_Eq W32)
+translateOp _      Int32GeOp       = Just (MO_S_Ge W32)
+translateOp _      Int32GtOp       = Just (MO_S_Gt W32)
+translateOp _      Int32LeOp       = Just (MO_S_Le W32)
+translateOp _      Int32LtOp       = Just (MO_S_Lt W32)
+translateOp _      Int32NeOp       = Just (MO_Ne W32)
+
+-- Word32# unsigned ops
+
+translateOp dflags Word32Extend     = Just (MO_UU_Conv W32 (wordWidth dflags))
+translateOp dflags Word32Narrow     = Just (MO_UU_Conv (wordWidth dflags) W32)
+translateOp _      Word32NotOp      = Just (MO_Not W32)
+translateOp _      Word32AddOp      = Just (MO_Add W32)
+translateOp _      Word32SubOp      = Just (MO_Sub W32)
+translateOp _      Word32MulOp      = Just (MO_Mul W32)
+translateOp _      Word32QuotOp     = Just (MO_U_Quot W32)
+translateOp _      Word32RemOp      = Just (MO_U_Rem W32)
+
+translateOp _      Word32EqOp       = Just (MO_Eq W32)
+translateOp _      Word32GeOp       = Just (MO_U_Ge W32)
+translateOp _      Word32GtOp       = Just (MO_U_Gt W32)
+translateOp _      Word32LeOp       = Just (MO_U_Le W32)
+translateOp _      Word32LtOp       = Just (MO_U_Lt W32)
+translateOp _      Word32NeOp       = Just (MO_Ne W32)
 
 -- Char# ops
 
