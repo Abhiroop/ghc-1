@@ -484,6 +484,88 @@ primop Word16LtOp "ltWord16#" Compare Word16# -> Word16# -> Int#
 primop Word16NeOp "neWord16#" Compare Word16# -> Word16# -> Int#
 
 ------------------------------------------------------------------------
+section "Int32#"
+        {Operations on 32-bit integers.}
+------------------------------------------------------------------------
+
+primtype Int32#
+
+primop Int32Extend "extendInt32#" GenPrimOp Int32# -> Int#
+primop Int32Narrow "narrowInt32#" GenPrimOp Int# -> Int32#
+
+primop Int32NegOp "negateInt32#" Monadic Int32# -> Int32#
+
+primop Int32AddOp "plusInt32#" Dyadic Int32# -> Int32# -> Int32#
+  with
+    commutable = True
+
+primop Int32SubOp "subInt32#" Dyadic Int32# -> Int32# -> Int32#
+
+primop Int32MulOp "timesInt32#" Dyadic Int32# -> Int32# -> Int32#
+  with
+    commutable = True
+
+primop Int32QuotOp "quotInt32#" Dyadic Int32# -> Int32# -> Int32#
+  with
+    can_fail = True
+
+primop Int32RemOp "remInt32#" Dyadic Int32# -> Int32# -> Int32#
+  with
+    can_fail = True
+
+primop Int32QuotRemOp "quotRemInt32#" GenPrimOp Int32# -> Int32# -> (# Int32#, Int32# #)
+  with
+    can_fail = True
+
+primop Int32EqOp "eqInt32#" Compare Int32# -> Int32# -> Int#
+primop Int32GeOp "geInt32#" Compare Int32# -> Int32# -> Int#
+primop Int32GtOp "gtInt32#" Compare Int32# -> Int32# -> Int#
+primop Int32LeOp "leInt32#" Compare Int32# -> Int32# -> Int#
+primop Int32LtOp "ltInt32#" Compare Int32# -> Int32# -> Int#
+primop Int32NeOp "neInt32#" Compare Int32# -> Int32# -> Int#
+
+------------------------------------------------------------------------
+section "Word32#"
+        {Operations on 32-bit unsigned integers.}
+------------------------------------------------------------------------
+
+primtype Word32#
+
+primop Word32Extend "extendWord32#" GenPrimOp Word32# -> Word#
+primop Word32Narrow "narrowWord32#" GenPrimOp Word# -> Word32#
+
+primop Word32NotOp "notWord32#" Monadic Word32# -> Word32#
+
+primop Word32AddOp "plusWord32#" Dyadic Word32# -> Word32# -> Word32#
+  with
+    commutable = True
+
+primop Word32SubOp "subWord32#" Dyadic Word32# -> Word32# -> Word32#
+
+primop Word32MulOp "timesWord32#" Dyadic Word32# -> Word32# -> Word32#
+  with
+    commutable = True
+
+primop Word32QuotOp "quotWord32#" Dyadic Word32# -> Word32# -> Word32#
+  with
+    can_fail = True
+
+primop Word32RemOp "remWord32#" Dyadic Word32# -> Word32# -> Word32#
+  with
+    can_fail = True
+
+primop Word32QuotRemOp "quotRemWord32#" GenPrimOp Word32# -> Word32# -> (# Word32#, Word32# #)
+  with
+    can_fail = True
+
+primop Word32EqOp "eqWord32#" Compare Word32# -> Word32# -> Int#
+primop Word32GeOp "geWord32#" Compare Word32# -> Word32# -> Int#
+primop Word32GtOp "gtWord32#" Compare Word32# -> Word32# -> Int#
+primop Word32LeOp "leWord32#" Compare Word32# -> Word32# -> Int#
+primop Word32LtOp "ltWord32#" Compare Word32# -> Word32# -> Int#
+primop Word32NeOp "neWord32#" Compare Word32# -> Word32# -> Int#
+
+------------------------------------------------------------------------
 section "Word#"
         {Operations on native-sized unsigned words (30+ bits).}
 ------------------------------------------------------------------------

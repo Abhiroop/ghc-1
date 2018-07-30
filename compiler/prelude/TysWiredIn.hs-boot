@@ -21,7 +21,7 @@ runtimeRepTy :: Type
 liftedRepDataConTyCon, vecRepDataConTyCon, tupleRepDataConTyCon :: TyCon
 
 liftedRepDataConTy, unliftedRepDataConTy, intRepDataConTy, int8RepDataConTy,
-  int16RepDataConTy, word16RepDataConTy,
+  int16RepDataConTy, word16RepDataConTy, int32RepDataConTy, word32RepDataConTy,
   wordRepDataConTy, int64RepDataConTy, word8RepDataConTy, word64RepDataConTy,
   addrRepDataConTy, floatRepDataConTy, doubleRepDataConTy :: Type
 
