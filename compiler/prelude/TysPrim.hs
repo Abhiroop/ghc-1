@@ -92,7 +92,7 @@ import {-# SOURCE #-} TysWiredIn
   ( runtimeRepTy, unboxedTupleKind, liftedTypeKind
   , vecRepDataConTyCon, tupleRepDataConTyCon
   , liftedRepDataConTy, unliftedRepDataConTy, intRepDataConTy, int8RepDataConTy
-  , int16RepDataConTy, word16RepDataConTy
+  , int16RepDataConTy, word16RepDataConTy, int32RepDataConTy, word32RepDataConTy
   , wordRepDataConTy, int64RepDataConTy, word8RepDataConTy, word64RepDataConTy
   , addrRepDataConTy
   , floatRepDataConTy, doubleRepDataConTy
@@ -506,10 +506,12 @@ primRepToRuntimeRep rep = case rep of
   IntRep        -> intRepDataConTy
   Int8Rep       -> int8RepDataConTy
   Int16Rep      -> int16RepDataConTy
+  Int32Rep      -> int32RepDataConTy
   WordRep       -> wordRepDataConTy
   Int64Rep      -> int64RepDataConTy
   Word8Rep      -> word8RepDataConTy
   Word16Rep     -> word16RepDataConTy
+  Word32Rep     -> word32RepDataConTy
   Word64Rep     -> word64RepDataConTy
   AddrRep       -> addrRepDataConTy
   FloatRep      -> floatRepDataConTy
