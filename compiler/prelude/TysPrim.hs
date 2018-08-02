@@ -566,7 +566,7 @@ int16PrimTyCon = pcPrimTyCon0 int16PrimTyConName Int16Rep
 int32PrimTy :: Type
 int32PrimTy     = mkTyConTy int32PrimTyCon
 int32PrimTyCon :: TyCon
-int32PrimTyCon  = pcPrimTyCon0 int32PrimTyConName IntRep
+int32PrimTyCon  = pcPrimTyCon0 int32PrimTyConName Int32Rep
 
 int64PrimTy :: Type
 int64PrimTy     = mkTyConTy int64PrimTyCon
@@ -591,7 +591,7 @@ word16PrimTyCon = pcPrimTyCon0 word16PrimTyConName Word16Rep
 word32PrimTy :: Type
 word32PrimTy    = mkTyConTy word32PrimTyCon
 word32PrimTyCon :: TyCon
-word32PrimTyCon = pcPrimTyCon0 word32PrimTyConName WordRep
+word32PrimTyCon = pcPrimTyCon0 word32PrimTyConName Word32Rep
 
 word64PrimTy :: Type
 word64PrimTy    = mkTyConTy word64PrimTyCon
