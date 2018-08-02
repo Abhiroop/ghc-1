@@ -13,7 +13,7 @@ main :: IO ()
 main = do
 
     --
-    -- Check if passing Int32# on the stack works (32 parameter function will
+    -- Check if passing Int32# on the stack works (16 parameter function will
     -- need to use stack for some of the them)
     --
     let input =
