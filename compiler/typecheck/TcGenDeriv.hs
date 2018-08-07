@@ -1452,16 +1452,19 @@ gfoldl_RDR, gunfold_RDR, toConstr_RDR, dataTypeOf_RDR, mkConstr_RDR,
     eqInt8_RDR  , ltInt8_RDR  , geInt8_RDR  , gtInt8_RDR  , leInt8_RDR  ,
     eqInt16_RDR , ltInt16_RDR , geInt16_RDR , gtInt16_RDR , leInt16_RDR ,
     eqInt32_RDR , ltInt32_RDR , geInt32_RDR , gtInt32_RDR , leInt32_RDR ,
+    eqInt64_RDR , ltInt64_RDR , geInt64_RDR , gtInt64_RDR , leInt64_RDR ,
     eqWord_RDR  , ltWord_RDR  , geWord_RDR  , gtWord_RDR  , leWord_RDR  ,
     eqWord8_RDR , ltWord8_RDR , geWord8_RDR , gtWord8_RDR , leWord8_RDR ,
     eqWord16_RDR, ltWord16_RDR, geWord16_RDR, gtWord16_RDR, leWord16_RDR,
     eqWord32_RDR, ltWord32_RDR, geWord32_RDR, gtWord32_RDR, leWord32_RDR,
+    eqWord64_RDR, ltWord64_RDR, geWord64_RDR, gtWord64_RDR, leWord64_RDR,
     eqAddr_RDR  , ltAddr_RDR  , geAddr_RDR  , gtAddr_RDR  , leAddr_RDR  ,
     eqFloat_RDR , ltFloat_RDR , geFloat_RDR , gtFloat_RDR , leFloat_RDR ,
     eqDouble_RDR, ltDouble_RDR, geDouble_RDR, gtDouble_RDR, leDouble_RDR,
     extendWord8_RDR, extendInt8_RDR,
     extendWord16_RDR, extendInt16_RDR,
-    extendWord32_RDR, extendInt32_RDR :: RdrName
+    extendWord32_RDR, extendInt32_RDR,
+    extendWord64_RDR, extendInt64_RDR :: RdrName
 gfoldl_RDR     = varQual_RDR  gENERICS (fsLit "gfoldl")
 gunfold_RDR    = varQual_RDR  gENERICS (fsLit "gunfold")
 toConstr_RDR   = varQual_RDR  gENERICS (fsLit "toConstr")
@@ -1508,6 +1511,12 @@ leInt32_RDR    = varQual_RDR  gHC_PRIM (fsLit "leInt32#")
 gtInt32_RDR    = varQual_RDR  gHC_PRIM (fsLit "gtInt32#" )
 geInt32_RDR    = varQual_RDR  gHC_PRIM (fsLit "geInt32#")
 
+eqInt64_RDR    = varQual_RDR  gHC_PRIM (fsLit "eqInt64#")
+ltInt64_RDR    = varQual_RDR  gHC_PRIM (fsLit "ltInt64#" )
+leInt64_RDR    = varQual_RDR  gHC_PRIM (fsLit "leInt64#")
+gtInt64_RDR    = varQual_RDR  gHC_PRIM (fsLit "gtInt64#" )
+geInt64_RDR    = varQual_RDR  gHC_PRIM (fsLit "geInt64#")
+
 eqWord_RDR     = varQual_RDR  gHC_PRIM (fsLit "eqWord#")
 ltWord_RDR     = varQual_RDR  gHC_PRIM (fsLit "ltWord#")
 leWord_RDR     = varQual_RDR  gHC_PRIM (fsLit "leWord#")
@@ -1531,6 +1540,12 @@ ltWord32_RDR   = varQual_RDR  gHC_PRIM (fsLit "ltWord32#" )
 leWord32_RDR   = varQual_RDR  gHC_PRIM (fsLit "leWord32#")
 gtWord32_RDR   = varQual_RDR  gHC_PRIM (fsLit "gtWord32#" )
 geWord32_RDR   = varQual_RDR  gHC_PRIM (fsLit "geWord32#")
+
+eqWord64_RDR   = varQual_RDR  gHC_PRIM (fsLit "eqWord64#")
+ltWord64_RDR   = varQual_RDR  gHC_PRIM (fsLit "ltWord64#" )
+leWord64_RDR   = varQual_RDR  gHC_PRIM (fsLit "leWord64#")
+gtWord64_RDR   = varQual_RDR  gHC_PRIM (fsLit "gtWord64#" )
+geWord64_RDR   = varQual_RDR  gHC_PRIM (fsLit "geWord64#")
 
 eqAddr_RDR     = varQual_RDR  gHC_PRIM (fsLit "eqAddr#")
 ltAddr_RDR     = varQual_RDR  gHC_PRIM (fsLit "ltAddr#")
@@ -1558,6 +1573,9 @@ extendInt16_RDR  = varQual_RDR  gHC_PRIM (fsLit "extendInt16#")
 
 extendWord32_RDR = varQual_RDR  gHC_PRIM (fsLit "extendWord32#")
 extendInt32_RDR  = varQual_RDR  gHC_PRIM (fsLit "extendInt32#")
+
+extendWord64_RDR = varQual_RDR  gHC_PRIM (fsLit "extendWord64#")
+extendInt64_RDR  = varQual_RDR  gHC_PRIM (fsLit "extendInt64#")
 
 {-
 ************************************************************************
@@ -2024,10 +2042,12 @@ ordOpTbl
     ,(int8PrimTy  , (ltInt8_RDR  , leInt8_RDR  , eqInt8_RDR  , geInt8_RDR  , gtInt8_RDR   ))
     ,(int16PrimTy , (ltInt16_RDR , leInt16_RDR , eqInt16_RDR , geInt16_RDR , gtInt16_RDR   ))
     ,(int32PrimTy , (ltInt32_RDR , leInt32_RDR , eqInt32_RDR , geInt32_RDR , gtInt32_RDR   ))
+    ,(int64PrimTy , (ltInt64_RDR , leInt64_RDR , eqInt64_RDR , geInt64_RDR , gtInt64_RDR   ))
     ,(wordPrimTy  , (ltWord_RDR  , leWord_RDR  , eqWord_RDR  , geWord_RDR  , gtWord_RDR  ))
     ,(word8PrimTy , (ltWord8_RDR , leWord8_RDR , eqWord8_RDR , geWord8_RDR , gtWord8_RDR   ))
     ,(word16PrimTy, (ltWord16_RDR, leWord16_RDR, eqWord16_RDR, geWord16_RDR, gtWord16_RDR  ))
     ,(word32PrimTy, (ltWord32_RDR, leWord32_RDR, eqWord32_RDR, geWord32_RDR, gtWord32_RDR  ))
+    ,(word64PrimTy, (ltWord64_RDR, leWord64_RDR, eqWord64_RDR, geWord64_RDR, gtWord64_RDR  ))
     ,(addrPrimTy  , (ltAddr_RDR  , leAddr_RDR  , eqAddr_RDR  , geAddr_RDR  , gtAddr_RDR  ))
     ,(floatPrimTy , (ltFloat_RDR , leFloat_RDR , eqFloat_RDR , geFloat_RDR , gtFloat_RDR ))
     ,(doublePrimTy, (ltDouble_RDR, leDouble_RDR, eqDouble_RDR, geDouble_RDR, gtDouble_RDR)) ]
@@ -2060,6 +2080,12 @@ boxConTbl =
     , (word32PrimTy,
         nlHsApp (nlHsVar $ getRdrName wordDataCon)
         .  nlHsApp (nlHsVar extendWord32_RDR))
+    , (int64PrimTy,
+        nlHsApp (nlHsVar $ getRdrName intDataCon)
+        . nlHsApp (nlHsVar extendInt64_RDR))
+    , (word64PrimTy,
+        nlHsApp (nlHsVar $ getRdrName wordDataCon)
+        .  nlHsApp (nlHsVar extendWord64_RDR))
 
     ]
 
@@ -2078,6 +2104,8 @@ postfixModTbl
     ,(word16PrimTy, "##")
     ,(int32PrimTy, "#")
     ,(word32PrimTy, "##")
+    ,(int64PrimTy, "#")
+    ,(word64PrimTy, "##")
 
     ]
 
@@ -2089,6 +2117,9 @@ primConvTbl =
     , (word16PrimTy, "narrowWord16#")
     , (int32PrimTy, "narrowInt32#")
     , (word32PrimTy, "narrowWord32#")
+    , (int64PrimTy, "narrowInt64#")
+    , (word64PrimTy, "narrowWord64#")
+
     ]
 
 litConTbl :: [(Type, LHsExpr GhcPs -> LHsExpr GhcPs)]

@@ -906,6 +906,10 @@ callishPrimOpSupported dflags op
                         || llvm      -> Left (MO_S_QuotRem W32)
                      | otherwise     -> Right (genericIntQuotRemOp W32)
 
+      Int64QuotRemOp | (ncg && x86ish)
+                        || llvm      -> Left (MO_S_QuotRem W64)
+                     | otherwise     -> Right (genericIntQuotRemOp W64)
+
       WordQuotRemOp  | ncg && (x86ish || ppc) ->
                          Left (MO_U_QuotRem  (wordWidth dflags))
                      | otherwise      ->
@@ -927,6 +931,10 @@ callishPrimOpSupported dflags op
       Word32QuotRemOp| (ncg && x86ish)
                         || llvm      -> Left (MO_U_QuotRem W32)
                      | otherwise     -> Right (genericWordQuotRemOp W32)
+
+      Word64QuotRemOp| (ncg && x86ish)
+                        || llvm      -> Left (MO_U_QuotRem W64)
+                     | otherwise     -> Right (genericWordQuotRemOp W64)
 
       WordAdd2Op     | (ncg && (x86ish
                                 || ppc))
@@ -1457,6 +1465,42 @@ translateOp _      Word32GtOp       = Just (MO_U_Gt W32)
 translateOp _      Word32LeOp       = Just (MO_U_Le W32)
 translateOp _      Word32LtOp       = Just (MO_U_Lt W32)
 translateOp _      Word32NeOp       = Just (MO_Ne W32)
+
+-- Int64# signed ops
+
+translateOp dflags Int64Extend     = Just (MO_SS_Conv W64 (wordWidth dflags))
+translateOp dflags Int64Narrow     = Just (MO_SS_Conv (wordWidth dflags) W64)
+translateOp _      Int64NegOp      = Just (MO_S_Neg W64)
+translateOp _      Int64AddOp      = Just (MO_Add W64)
+translateOp _      Int64SubOp      = Just (MO_Sub W64)
+translateOp _      Int64MulOp      = Just (MO_Mul W64)
+translateOp _      Int64QuotOp     = Just (MO_S_Quot W64)
+translateOp _      Int64RemOp      = Just (MO_S_Rem W64)
+
+translateOp _      Int64EqOp       = Just (MO_Eq W64)
+translateOp _      Int64GeOp       = Just (MO_S_Ge W64)
+translateOp _      Int64GtOp       = Just (MO_S_Gt W64)
+translateOp _      Int64LeOp       = Just (MO_S_Le W64)
+translateOp _      Int64LtOp       = Just (MO_S_Lt W64)
+translateOp _      Int64NeOp       = Just (MO_Ne W64)
+
+-- Word64# unsigned ops
+
+translateOp dflags Word64Extend     = Just (MO_UU_Conv W64 (wordWidth dflags))
+translateOp dflags Word64Narrow     = Just (MO_UU_Conv (wordWidth dflags) W64)
+translateOp _      Word64NotOp      = Just (MO_Not W64)
+translateOp _      Word64AddOp      = Just (MO_Add W64)
+translateOp _      Word64SubOp      = Just (MO_Sub W64)
+translateOp _      Word64MulOp      = Just (MO_Mul W64)
+translateOp _      Word64QuotOp     = Just (MO_U_Quot W64)
+translateOp _      Word64RemOp      = Just (MO_U_Rem W64)
+
+translateOp _      Word64EqOp       = Just (MO_Eq W64)
+translateOp _      Word64GeOp       = Just (MO_U_Ge W64)
+translateOp _      Word64GtOp       = Just (MO_U_Gt W64)
+translateOp _      Word64LeOp       = Just (MO_U_Le W64)
+translateOp _      Word64LtOp       = Just (MO_U_Lt W64)
+translateOp _      Word64NeOp       = Just (MO_Ne W64)
 
 -- Char# ops
 

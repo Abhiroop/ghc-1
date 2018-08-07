@@ -1,0 +1,8 @@
+Pass: passing Int64# on the stack
+Pass: negateInt64#
+Pass: plusInt64#
+Pass: subInt64#
+Pass: timesInt64#
+Pass: remInt64#
+Pass: quotInt64#
+Pass: quotRemInt64#

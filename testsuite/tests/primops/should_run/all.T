@@ -30,3 +30,8 @@ test('ArithInt32', normal, compile_and_run, [''])
 test('ArithWord32', normal, compile_and_run, [''])
 test('CmpInt32', normal, compile_and_run, [''])
 test('CmpWord32', normal, compile_and_run, [''])
+
+test('ArithInt64', normal, compile_and_run, [''])
+test('ArithWord64', normal, compile_and_run, [''])
+test('CmpInt64', normal, compile_and_run, [''])
+test('CmpWord64', normal, compile_and_run, [''])

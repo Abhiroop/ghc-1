@@ -566,6 +566,88 @@ primop Word32LtOp "ltWord32#" Compare Word32# -> Word32# -> Int#
 primop Word32NeOp "neWord32#" Compare Word32# -> Word32# -> Int#
 
 ------------------------------------------------------------------------
+section "Int64#"
+        {Operations on 64-bit integers.}
+------------------------------------------------------------------------
+
+primtype Int64#
+
+primop Int64Extend "extendInt64#" GenPrimOp Int64# -> Int#
+primop Int64Narrow "narrowInt64#" GenPrimOp Int# -> Int64#
+
+primop Int64NegOp "negateInt64#" Monadic Int64# -> Int64#
+
+primop Int64AddOp "plusInt64#" Dyadic Int64# -> Int64# -> Int64#
+  with
+    commutable = True
+
+primop Int64SubOp "subInt64#" Dyadic Int64# -> Int64# -> Int64#
+
+primop Int64MulOp "timesInt64#" Dyadic Int64# -> Int64# -> Int64#
+  with
+    commutable = True
+
+primop Int64QuotOp "quotInt64#" Dyadic Int64# -> Int64# -> Int64#
+  with
+    can_fail = True
+
+primop Int64RemOp "remInt64#" Dyadic Int64# -> Int64# -> Int64#
+  with
+    can_fail = True
+
+primop Int64QuotRemOp "quotRemInt64#" GenPrimOp Int64# -> Int64# -> (# Int64#, Int64# #)
+  with
+    can_fail = True
+
+primop Int64EqOp "eqInt64#" Compare Int64# -> Int64# -> Int#
+primop Int64GeOp "geInt64#" Compare Int64# -> Int64# -> Int#
+primop Int64GtOp "gtInt64#" Compare Int64# -> Int64# -> Int#
+primop Int64LeOp "leInt64#" Compare Int64# -> Int64# -> Int#
+primop Int64LtOp "ltInt64#" Compare Int64# -> Int64# -> Int#
+primop Int64NeOp "neInt64#" Compare Int64# -> Int64# -> Int#
+
+------------------------------------------------------------------------
+section "Word64#"
+        {Operations on 64-bit unsigned integers.}
+------------------------------------------------------------------------
+
+primtype Word64#
+
+primop Word64Extend "extendWord64#" GenPrimOp Word64# -> Word#
+primop Word64Narrow "narrowWord64#" GenPrimOp Word# -> Word64#
+
+primop Word64NotOp "notWord64#" Monadic Word64# -> Word64#
+
+primop Word64AddOp "plusWord64#" Dyadic Word64# -> Word64# -> Word64#
+  with
+    commutable = True
+
+primop Word64SubOp "subWord64#" Dyadic Word64# -> Word64# -> Word64#
+
+primop Word64MulOp "timesWord64#" Dyadic Word64# -> Word64# -> Word64#
+  with
+    commutable = True
+
+primop Word64QuotOp "quotWord64#" Dyadic Word64# -> Word64# -> Word64#
+  with
+    can_fail = True
+
+primop Word64RemOp "remWord64#" Dyadic Word64# -> Word64# -> Word64#
+  with
+    can_fail = True
+
+primop Word64QuotRemOp "quotRemWord64#" GenPrimOp Word64# -> Word64# -> (# Word64#, Word64# #)
+  with
+    can_fail = True
+
+primop Word64EqOp "eqWord64#" Compare Word64# -> Word64# -> Int#
+primop Word64GeOp "geWord64#" Compare Word64# -> Word64# -> Int#
+primop Word64GtOp "gtWord64#" Compare Word64# -> Word64# -> Int#
+primop Word64LeOp "leWord64#" Compare Word64# -> Word64# -> Int#
+primop Word64LtOp "ltWord64#" Compare Word64# -> Word64# -> Int#
+primop Word64NeOp "neWord64#" Compare Word64# -> Word64# -> Int#
+
+------------------------------------------------------------------------
 section "Word#"
         {Operations on native-sized unsigned words (30+ bits).}
 ------------------------------------------------------------------------

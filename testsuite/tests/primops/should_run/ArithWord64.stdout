@@ -1,0 +1,8 @@
+Pass: passing Word64# on the stack
+Pass: notWord64#
+Pass: plusWord64#
+Pass: subWord64#
+Pass: timesWord64#
+Pass: remWord64#
+Pass: quotWord64#
+Pass: quotRemWord64#

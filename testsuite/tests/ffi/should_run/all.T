@@ -200,3 +200,7 @@ test('PrimFFIWord16', [omit_ways(['ghci'])], compile_and_run, ['PrimFFIWord16_c.
 test('PrimFFIInt32', [omit_ways(['ghci'])], compile_and_run, ['PrimFFIInt32_c.c'])
 
 test('PrimFFIWord32', [omit_ways(['ghci'])], compile_and_run, ['PrimFFIWord32_c.c'])
+
+test('PrimFFIInt64', [omit_ways(['ghci'])], compile_and_run, ['PrimFFIInt64_c.c'])
+
+test('PrimFFIWord64', [omit_ways(['ghci'])], compile_and_run, ['PrimFFIWord64_c.c'])
