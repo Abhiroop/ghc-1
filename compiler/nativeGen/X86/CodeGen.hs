@@ -539,17 +539,21 @@ getRegister' dflags is32Bit (CmmReg reg)
         _ ->
             do use_sse2 <- sse2Enabled
                use_avx <- avxEnabled
+               use_sse4_1 <- sse4_1Enabled
                let cmmregtype = cmmRegType dflags reg
                if isVecType cmmregtype
-                 then return (vectorRegister cmmregtype use_avx use_sse2)
+                 then return
+                      (vectorRegister cmmregtype use_avx use_sse2 use_sse4_1)
                  else return (standardRegister cmmregtype use_avx use_sse2)
   where
-    vectorRegister crt ua us
-      | ua || us  = let vecfmt   = cmmTypeFormat crt
-                        platform = targetPlatform dflags
-                     in (Fixed vecfmt
-                         (getVecRegisterReg platform True vecfmt reg) nilOL)
-      | otherwise = panic "Please enable the -mavx or -msse2 flag"
+    -- TODO: Refactor this part to avoid passing all flags repeatedly
+    vectorRegister crt ua us2 us41
+      | ua || us2 || us41 =
+        let vecfmt = cmmTypeFormat crt
+            platform = targetPlatform dflags
+        in (Fixed vecfmt
+             (getVecRegisterReg platform ua vecfmt reg) nilOL)
+      | otherwise = sorry "Please enable the -mavx or -msse4 flag"
 
     standardRegister crt ua us =
       let fmt = cmmTypeFormat crt
@@ -961,13 +965,19 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_S_Shr rep -> shift_code rep SAR x y {-False-}
 
       MO_V_Insert {}   -> needLlvm
-      MO_V_Extract {}  -> needLlvm
       MO_V_Add {}      -> needLlvm
       MO_V_Sub {}      -> needLlvm
       MO_V_Mul {}      -> needLlvm
       MO_VS_Quot {}    -> needLlvm
       MO_VS_Rem {}     -> needLlvm
       MO_VS_Neg {}     -> needLlvm
+
+
+      MO_V_Broadcast  l W8  | sse4_1    -> vector_int_broadcast l W8 x y
+                            | otherwise -> sorry "Please enable the -msse4 flag"
+
+      MO_V_Extract    l W8  | sse4_1    -> vector_int_unpack l W8 x y
+                            | otherwise -> sorry "Please enable the -msse4 flag"
 
       MO_VF_Broadcast l W32 | avx       -> vector_float_broadcast     l W32 x y
                             | sse4_1    -> vector_float_broadcast_sse l W32 x y
@@ -1193,7 +1203,6 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
     vector_float_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
     -----------------------
-
     vector_float_unpack_sse :: Length
                             -> Width
                             -> CmmExpr
@@ -1211,6 +1220,25 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                 _          -> panic "Error in offset while unpacking"
       return (Any format code)
     vector_float_unpack_sse _ _ c _
+
+    vector_int_unpack :: Length
+                      -> Width
+                      -> CmmExpr
+                      -> CmmExpr
+                      -> NatM Register
+    vector_int_unpack l W8 (CmmReg reg) (CmmLit lit)
+      = do
+      dflags <- getDynFlags
+      r      <- getNewRegNat II8
+      let format   = VecFormat l FmtInt8 W8
+          platform = targetPlatform dflags
+          reg'     = getVecRegisterReg platform True format reg
+          imm      = litToImm lit
+          addr     = spRel dflags 0
+      return $
+        Fixed format r ((unitOL (PEXTR format (OpImm imm) reg' (OpAddr addr)))
+                        `snocOL` (MOV II8 (OpAddr addr) (OpReg r)))
+    vector_int_unpack _ _ c _
       = pprPanic "Unpack not supported for : " (ppr c)
     -----------------------
     vector_float_broadcast :: Length
@@ -1269,6 +1297,24 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                      (INSERTPS f (OpImm imm4) (OpAddr addr) dst)
        in return $ Any f code
     vector_float_broadcast_sse _ _ c _
+
+    vector_int_broadcast :: Length
+                         -> Width
+                         -> CmmExpr
+                         -> CmmExpr
+                         -> NatM Register
+    vector_int_broadcast len W8 expr _
+     = do
+      Amode addr mem_code <- getAmode expr
+      let f = VecFormat len FmtInt8 W8
+      return $
+        Any f (\r -> mem_code `appOL`
+                     (toOL $
+                       map (\i ->
+                              (PINSR f (OpImm (ImmInt i)) (OpAddr addr) r))
+                       [0..15])
+              )
+    vector_int_broadcast _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)
     -----------------------
     sub_code :: Width -> CmmExpr -> CmmExpr -> NatM Register
@@ -1489,6 +1535,8 @@ getNonClobberedReg expr = do
                 return (reg, code)
 
 reg2reg :: Format -> Reg -> Reg -> Instr
+reg2reg format@(VecFormat _ FmtInt8 W8) src dst
+  = MOVDQU format (OpReg src) (OpReg dst)
 reg2reg format@(VecFormat _ FmtFloat W32) src dst
   = VMOVU format (OpReg src) (OpReg dst)
 reg2reg format@(VecFormat _ FmtDouble W64) src dst

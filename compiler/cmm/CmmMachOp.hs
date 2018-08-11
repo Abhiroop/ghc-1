@@ -118,8 +118,9 @@ data MachOp
   | MO_FF_Conv Width Width      -- Float -> Float
 
   -- Vector element insertion and extraction operations
-  | MO_V_Insert  Length Width   -- Insert scalar into vector
-  | MO_V_Extract Length Width   -- Extract scalar from vector
+  | MO_V_Broadcast Length Width   -- Broadcast a scalar into a vector
+  | MO_V_Insert    Length Width   -- Insert scalar into vector
+  | MO_V_Extract   Length Width   -- Extract scalar from vector
 
   -- Integer vector operations
   | MO_V_Add Length Width
@@ -406,6 +407,7 @@ machOpResultType dflags mop tys =
     MO_SF_Conv _ to     -> cmmFloat to
     MO_FF_Conv _ to     -> cmmFloat to
 
+    MO_V_Broadcast l w  -> cmmVec l (cmmBits w)
     MO_V_Insert  l w    -> cmmVec l (cmmBits w)
     MO_V_Extract _ w    -> cmmBits w
 
@@ -499,6 +501,7 @@ machOpArgReps dflags op =
     MO_FS_Conv from _   -> [from]
     MO_FF_Conv from _   -> [from]
 
+    --MO_V_Broadcast _ r  -> [r,W32]
     MO_V_Insert  l r    -> [typeWidth (vec l (cmmBits r)),r,wordWidth dflags]
     MO_V_Extract l r    -> [typeWidth (vec l (cmmBits r)),wordWidth dflags]
 

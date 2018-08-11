@@ -364,12 +364,15 @@ data Instr
         | VBROADCAST  Format AddrMode Reg
         | VEXTRACT    Format Operand Reg Operand
         | INSERTPS    Format Operand Operand Reg
+        | PINSR       Format Operand Operand Reg
+        | PEXTR       Format Operand Reg Operand
 
         -- move operations
         | VMOVU       Format Operand Operand
         | MOVU        Format Operand Operand
         | MOVL        Format Operand Operand
         | MOVH        Format Operand Operand
+        | MOVDQU      Format Operand Operand
 
         -- logic operations
         | VPXOR       Format Reg Reg Reg
@@ -387,6 +390,9 @@ data Instr
         -- Shift
         | PSLLDQ     Format Operand Reg
         | PSRLDQ     Format Operand Reg
+
+        -- Shift operations
+        | PSLLDQ     Format Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -524,6 +530,7 @@ x86_regUsageOfInstr platform instr
     MOVU         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVL         _ src dst   -> mkRU (use_R src []) (use_R dst [])
     MOVH         _ src dst   -> mkRU (use_R src []) (use_R dst [])
+    MOVDQU       _ src dst   -> mkRU (use_R src []) (use_R dst [])
     VPXOR        _ s1 s2 dst -> mkRU [s1,s2] [dst]
 
     VADD         _ s1 s2 dst -> mkRU ((use_R s1 []) ++ [s2]) [dst]
@@ -538,6 +545,9 @@ x86_regUsageOfInstr platform instr
 
     PSLLDQ       _ off dst -> mkRU (use_R off []) [dst]
     PSRLDQ       _ off dst -> mkRU (use_R off []) [dst]
+    PINSR        _ off src dst
+      -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
+    PEXTR        _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
 
     _other              -> panic "regUsage: unrecognised instr"
  where
@@ -732,6 +742,7 @@ x86_patchRegsOfInstr instr env
     MOVL       fmt src dst   -> MOVL  fmt (patchOp src) (patchOp dst)
     MOVH       fmt src dst   -> MOVH  fmt (patchOp src) (patchOp dst)
     VPXOR      fmt s1 s2 dst -> VPXOR fmt (env s1) (env s2) (env dst)
+    MOVDQU     fmt src dst   -> MOVDQU fmt (patchOp src) (patchOp dst)
 
     VADD       fmt s1 s2 dst -> VADD fmt (patchOp s1) (env s2) (env dst)
     VSUB       fmt s1 s2 dst -> VSUB fmt (patchOp s1) (env s2) (env dst)
@@ -746,6 +757,10 @@ x86_patchRegsOfInstr instr env
       -> PSLLDQ  fmt (patchOp off) (env dst)
     PSRLDQ       fmt off dst
       -> PSRLDQ  fmt (patchOp off) (env dst)
+    PINSR      fmt off src dst
+      -> PINSR   fmt (patchOp off) (patchOp src) (env dst)
+    PEXTR      fmt off src dst
+      -> PEXTR   fmt (patchOp off) (env src) (patchOp dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where
