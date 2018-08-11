@@ -3436,9 +3436,9 @@ section "SIMD Vectors"
 ------------------------------------------------------------------------
 
 #define ALL_VECTOR_TYPES \
-  [<Int8,Int#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
-  ,<Int8,Int#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
-  ,<Int8,Int#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
+  [<Int8,Int8#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
+  ,<Int8,Int8#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
+  ,<Int8,Int8#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
   ,<Word8,Word#,16>,<Word16,Word#,8>,<Word32,WORD32,4>,<Word64,WORD64,2> \
   ,<Word8,Word#,32>,<Word16,Word#,16>,<Word32,WORD32,8>,<Word64,WORD64,4> \
   ,<Word8,Word#,64>,<Word16,Word#,32>,<Word32,WORD32,16>,<Word64,WORD64,8> \
@@ -3447,9 +3447,9 @@ section "SIMD Vectors"
   ,<Float,Float#,16>,<Double,Double#,8>]
 
 #define SIGNED_VECTOR_TYPES \
-  [<Int8,Int#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
-  ,<Int8,Int#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
-  ,<Int8,Int#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
+  [<Int8,Int8#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
+  ,<Int8,Int8#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
+  ,<Int8,Int8#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
   ,<Float,Float#,4>,<Double,Double#,2> \
   ,<Float,Float#,8>,<Double,Double#,4> \
   ,<Float,Float#,16>,<Double,Double#,8>]
@@ -3460,9 +3460,9 @@ section "SIMD Vectors"
   ,<Float,Float#,16>,<Double,Double#,8>]
 
 #define INT_VECTOR_TYPES \
-  [<Int8,Int#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
-  ,<Int8,Int#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
-  ,<Int8,Int#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
+  [<Int8,Int8#,16>,<Int16,Int#,8>,<Int32,INT32,4>,<Int64,INT64,2> \
+  ,<Int8,Int8#,32>,<Int16,Int#,16>,<Int32,INT32,8>,<Int64,INT64,4> \
+  ,<Int8,Int8#,64>,<Int16,Int#,32>,<Int32,INT32,16>,<Int64,INT64,8> \
   ,<Word8,Word#,16>,<Word16,Word#,8>,<Word32,WORD32,4>,<Word64,WORD64,2> \
   ,<Word8,Word#,32>,<Word16,Word#,16>,<Word32,WORD32,8>,<Word64,WORD64,4> \
   ,<Word8,Word#,64>,<Word16,Word#,32>,<Word32,WORD32,16>,<Word64,WORD64,8>]

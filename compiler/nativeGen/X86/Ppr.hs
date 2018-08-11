@@ -365,7 +365,8 @@ pprFormat x
                 FF64  -> sLit "sd"      -- "scalar double-precision float" (SSE2)
                 FF80  -> sLit "t"
 
-                VecFormat _ FmtFloat W32  -> sLit "ps"
+                VecFormat _ FmtInt8   _   -> sLit "b"
+                VecFormat _ FmtFloat  W32 -> sLit "ps"
                 VecFormat _ FmtDouble W64 -> sLit "pd"
                 -- TODO: Add Ints and remove panic
                 VecFormat {} -> panic "Incorrect width"
@@ -774,6 +775,8 @@ pprInstr (MOVL format from to)
   = pprFormatOpOp (sLit "movl") format from to
 pprInstr (MOVH format from to)
   = pprFormatOpOp (sLit "movh") format from to
+pprInstr (MOVDQU format from to)
+  = pprMov (sLit "movdqu") format from to
 pprInstr (VPXOR format s1 s2 dst)
   = pprXor (sLit "vpxor") format s1 s2 dst
 pprInstr (VEXTRACT format offset from to)
@@ -782,6 +785,12 @@ pprInstr (INSERTPS format offset addr dst)
   = pprInsert (sLit "insertps") format offset addr dst
 pprInstr (VPSHUFD format offset src dst)
   = pprShuf (sLit "vpshufd") format offset src dst
+pprInstr (PSLLDQ format offset dst)
+  = pprShiftl (sLit "pslldq") format offset dst
+pprInstr (PINSR format offset src dst)
+  = pprFormatOpOpReg (sLit "pinsr") format offset src dst
+pprInstr (PEXTR format offset src dst)
+  = pprFormatOpRegOp (sLit "pextr") format offset src dst
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2
 pprInstr (MUL2 format op) = pprFormatOp (sLit "mul") format op
@@ -1453,4 +1462,22 @@ pprShuf name format op1 op2 reg3
         pprOperand format op2,
         comma,
         pprReg format reg3
+    ]
+
+pprShiftl :: LitString -> Format -> Operand -> Reg -> SDoc
+pprShiftl name format op reg
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format op,
+        comma,
+        pprReg format reg
+    ]
+
+pprMov :: LitString -> Format -> Operand -> Operand -> SDoc
+pprMov name format from to
+  = hcat [
+        pprGenMnemonic name format,
+        pprOperand format from,
+        comma,
+        pprOperand format to
     ]
