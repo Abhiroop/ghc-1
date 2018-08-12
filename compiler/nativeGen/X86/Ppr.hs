@@ -366,6 +366,7 @@ pprFormat x
                 FF80  -> sLit "t"
 
                 VecFormat _ FmtInt8   _   -> sLit "b"
+                VecFormat _ FmtInt32  W32 -> sLit "d"
                 VecFormat _ FmtFloat  W32 -> sLit "ps"
                 VecFormat _ FmtDouble W64 -> sLit "pd"
                 -- TODO: Add Ints and remove panic
@@ -797,6 +798,8 @@ pprInstr (PINSR format offset src dst)
   = pprFormatOpOpReg (sLit "pinsr") format offset src dst
 pprInstr (PEXTR format offset src dst)
   = pprFormatOpRegOp (sLit "pextr") format offset src dst
+pprInstr (PSHUF format src dst)
+  = pprFormatOpReg (sLit "pshuf") format src dst
 
 -- x86_64 only
 pprInstr (MUL format op1 op2) = pprFormatOpOp (sLit "mul") format op1 op2

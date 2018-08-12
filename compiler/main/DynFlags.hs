@@ -154,6 +154,7 @@ module DynFlags (
         isSse2Enabled,
         isSse4_1Enabled,
         isSse4_2Enabled,
+        isSsse3Enabled,
         isBmiEnabled,
         isBmi2Enabled,
         isAvxEnabled,
@@ -3250,6 +3251,8 @@ dynamic_flags_deps = [
                                                   d { sseVersion = Just SSE2 }))
   , make_ord_flag defGhcFlag "msse3"        (noArg (\d ->
                                                   d { sseVersion = Just SSE3 }))
+  , make_ord_flag defGhcFlag "mssse3"       (noArg (\d ->
+                                                  d { sseVersion = Just SSSE3 }))
   , make_ord_flag defGhcFlag "msse4"        (noArg (\d ->
                                                   d { sseVersion = Just SSE4 }))
   , make_ord_flag defGhcFlag "msse4.2"      (noArg (\d ->
@@ -5505,6 +5508,7 @@ setUnsafeGlobalDynFlags = writeIORef v_unsafeGlobalDynFlags
 data SseVersion = SSE1
                 | SSE2
                 | SSE3
+                | SSSE3 -- Supplemental SSE3
                 | SSE4
                 | SSE42
                 deriving (Eq, Ord)
@@ -5531,6 +5535,9 @@ isSse4_1Enabled dflags = sseVersion dflags >= Just SSE4
 
 isSse4_2Enabled :: DynFlags -> Bool
 isSse4_2Enabled dflags = sseVersion dflags >= Just SSE42
+
+isSsse3Enabled :: DynFlags -> Bool
+isSsse3Enabled dflags = sseVersion dflags >= Just SSSE3
 
 isAvxEnabled :: DynFlags -> Bool
 isAvxEnabled dflags = avx dflags || avx2 dflags || avx512f dflags

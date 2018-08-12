@@ -105,6 +105,11 @@ sseEnabled = do
   dflags <- getDynFlags
   return (isSseEnabled dflags)
 
+ssse3Enabled :: NatM Bool
+ssse3Enabled = do
+  dflags <- getDynFlags
+  return (isSsse3Enabled dflags)
+
 avxEnabled :: NatM Bool
 avxEnabled = do
   dflags <- getDynFlags
@@ -909,6 +914,7 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
   sse4_1 <- sse4_1Enabled
   sse2   <- sse2Enabled
   sse    <- sseEnabled
+  ssse3  <- ssse3Enabled
   avx    <- avxEnabled
   case mop of
       MO_F_Eq _ -> condFltReg is32Bit EQQ x y
@@ -973,8 +979,8 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
       MO_VS_Neg {}     -> needLlvm
 
 
-      MO_V_Broadcast  l W8  | sse4_1    -> vector_int_broadcast l W8 x y
-                            | otherwise -> sorry "Please enable the -msse4 flag"
+      MO_V_Broadcast  l W8  | ssse3     -> vector_int_broadcast l W8 x y
+                            | otherwise -> sorry "Please enable the -mssse3 flag"
 
       MO_V_Extract    l W8  | sse4_1    -> vector_int_unpack l W8 x y
                             | otherwise -> sorry "Please enable the -msse4 flag"
@@ -1305,14 +1311,25 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                          -> NatM Register
     vector_int_broadcast len W8 expr _
      = do
+      -- Amode addr mem_code <- getAmode expr
+      -- foo <- getNewRegNat (VecFormat len FmtInt8 W8)
+      -- let f = VecFormat len FmtInt8 W8
+      -- return $
+      --   Fixed f foo (mem_code `appOL`
+      --                (toOL $
+      --                  map (\i ->
+      --                         (PINSR f (OpImm (ImmInt i)) (OpAddr addr) foo))
+      --                  [0..15])
+      --         )
       Amode addr mem_code <- getAmode expr
+      temp <- getNewRegNat (VecFormat len FmtInt8 W8)
       let f = VecFormat len FmtInt8 W8
       return $
-        Any f (\r -> mem_code `appOL`
-                     (toOL $
-                       map (\i ->
-                              (PINSR f (OpImm (ImmInt i)) (OpAddr addr) r))
-                       [0..15])
+        Any f (\r -> (mem_code `snocOL`
+                      (MOV (VecFormat len FmtInt32 W32) (OpAddr addr) (OpReg r)) `snocOL`
+                      (VPXOR f temp temp temp) `snocOL`
+                      (PSHUF f (OpReg temp) r)
+                     )
               )
     vector_int_broadcast _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)

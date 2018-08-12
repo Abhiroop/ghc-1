@@ -390,6 +390,7 @@ data Instr
         -- Shift
         | PSLLDQ     Format Operand Reg
         | PSRLDQ     Format Operand Reg
+        | PSHUF      Format Operand Reg
 
         -- Shift operations
         | PSLLDQ     Format Operand Reg
@@ -548,6 +549,7 @@ x86_regUsageOfInstr platform instr
     PINSR        _ off src dst
       -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
     PEXTR        _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
+    PSHUF        _ src dst     -> mkRU  (use_R src []) [dst]
 
     _other              -> panic "regUsage: unrecognised instr"
  where
@@ -761,6 +763,7 @@ x86_patchRegsOfInstr instr env
       -> PINSR   fmt (patchOp off) (patchOp src) (env dst)
     PEXTR      fmt off src dst
       -> PEXTR   fmt (patchOp off) (env src) (patchOp dst)
+    PSHUF      fmt src dst -> PSHUF fmt (patchOp src) (env dst)
     _other              -> panic "patchRegs: unrecognised instr"
 
   where
