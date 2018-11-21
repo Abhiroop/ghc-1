@@ -228,6 +228,7 @@ data Instr
         | AND         Format Operand Operand
         | OR          Format Operand Operand
         | XOR         Format Operand Operand
+        | PXOR        Format Operand Operand
         | NOT         Format Operand
         | NEGI        Format Operand         -- NEG instruction (name clash with Cond)
         | BSWAP       Format Reg
@@ -386,14 +387,11 @@ data Instr
         -- Shuffle
         | VPSHUFD    Format Operand Operand Reg
         | PSHUFD     Format Operand Operand Reg
+        | PSHUF      Format Operand Reg
 
         -- Shift
         | PSLLDQ     Format Operand Reg
         | PSRLDQ     Format Operand Reg
-        | PSHUF      Format Operand Reg
-
-        -- Shift operations
-        | PSLLDQ     Format Operand Reg
 
 data PrefetchVariant = NTA | Lvl0 | Lvl1 | Lvl2
 
@@ -440,6 +438,10 @@ x86_regUsageOfInstr platform instr
         | src == dst    -> mkRU [] [dst]
 
     XOR    _ src dst    -> usageRM src dst
+    PXOR   _ (OpReg src) (OpReg dst)
+        | src == dst    -> mkRU [] [dst]
+
+    PXOR   _ src dst    -> usageRM src dst
     NOT    _ op         -> usageM op
     BSWAP  _ reg        -> mkRU [reg] [reg]
     NEGI   _ op         -> usageM op
@@ -547,7 +549,7 @@ x86_regUsageOfInstr platform instr
     PSLLDQ       _ off dst -> mkRU (use_R off []) [dst]
     PSRLDQ       _ off dst -> mkRU (use_R off []) [dst]
     PINSR        _ off src dst
-      -> mkRU (concatMap (\op -> use_R op []) [off, src]) [dst]
+      -> mkRU ((concatMap (\op -> use_R op []) [off, src])) [dst]
     PEXTR        _ off src dst -> mkRU ((use_R off []) ++ [src]) (use_R dst [])
     PSHUF        _ src dst     -> mkRU  (use_R src []) [dst]
 
@@ -651,6 +653,7 @@ x86_patchRegsOfInstr instr env
     AND  fmt src dst     -> patch2 (AND  fmt) src dst
     OR   fmt src dst     -> patch2 (OR   fmt) src dst
     XOR  fmt src dst     -> patch2 (XOR  fmt) src dst
+    PXOR fmt src dst     -> patch2 (XOR  fmt) src dst
     NOT  fmt op          -> patch1 (NOT  fmt) op
     BSWAP fmt reg        -> BSWAP fmt (env reg)
     NEGI fmt op          -> patch1 (NEGI fmt) op

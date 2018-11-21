@@ -1226,6 +1226,9 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                 _          -> panic "Error in offset while unpacking"
       return (Any format code)
     vector_float_unpack_sse _ _ c _
+      = pprPanic "Unpack not supported for : " (ppr c)
+
+    ----------------------------------------
 
     vector_int_unpack :: Length
                       -> Width
@@ -1303,34 +1306,36 @@ getRegister' _ is32Bit (CmmMachOp mop [x, y]) = do -- dyadic MachOps
                      (INSERTPS f (OpImm imm4) (OpAddr addr) dst)
        in return $ Any f code
     vector_float_broadcast_sse _ _ c _
+      = pprPanic "Broadcast not supported for : " (ppr c)
 
+    -----------------------------------------------
     vector_int_broadcast :: Length
                          -> Width
                          -> CmmExpr
                          -> CmmExpr
                          -> NatM Register
-    vector_int_broadcast len W8 expr _
+    vector_int_broadcast len W8 expr1 expr2
      = do
-      -- Amode addr mem_code <- getAmode expr
-      -- foo <- getNewRegNat (VecFormat len FmtInt8 W8)
-      -- let f = VecFormat len FmtInt8 W8
-      -- return $
-      --   Fixed f foo (mem_code `appOL`
-      --                (toOL $
-      --                  map (\i ->
-      --                         (PINSR f (OpImm (ImmInt i)) (OpAddr addr) foo))
-      --                  [0..15])
-      --         )
-      Amode addr mem_code <- getAmode expr
-      temp <- getNewRegNat (VecFormat len FmtInt8 W8)
+      --Amode addr mem_code <- getAmode expr
+      (reg,block) <- getSomeReg expr2
       let f = VecFormat len FmtInt8 W8
       return $
-        Any f (\r -> (mem_code `snocOL`
-                      (MOV (VecFormat len FmtInt32 W32) (OpAddr addr) (OpReg r)) `snocOL`
-                      (VPXOR f temp temp temp) `snocOL`
-                      (PSHUF f (OpReg temp) r)
-                     )
+        Any f (\r -> block `appOL`
+                     (toOL $
+                       map (\i ->
+                              (PINSR f (OpImm (ImmInt i)) (OpReg reg) r))
+                       [0..15])
               )
+      -- Amode addr mem_code <- getAmode expr
+      -- temp <- getNewRegNat (VecFormat len FmtInt8 W8)
+      -- let f = VecFormat len FmtInt8 W8
+      -- return $
+      --   Any f (\r -> (mem_code `snocOL`
+      --                 (MOV (VecFormat len FmtInt32 W32) (OpAddr addr) (OpReg r)) `snocOL`
+      --                 (VPXOR f temp temp temp) `snocOL`
+      --                 (PSHUF f (OpReg temp) r)
+      --                )
+      --         )
     vector_int_broadcast _ _ c _
       = pprPanic "Broadcast not supported for : " (ppr c)
     -----------------------
@@ -1479,7 +1484,7 @@ getRegister' dflags _ (CmmLit lit)
       -- This operation is only used to zero a register. For loading a
       -- vector literal there are pack and broadcast operations
       let format = cmmTypeFormat ctype
-          code dst = unitOL (XOR format (OpReg dst) (OpReg dst))
+          code dst = unitOL (PXOR format (OpReg dst) (OpReg dst))
       return (Any format code)
     standardRegister ctype
       = do

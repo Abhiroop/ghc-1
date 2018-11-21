@@ -1817,7 +1817,7 @@ doVecBroadcastOp maybe_pre_write_cast ty z es res = do
                                                     [CmmReg (CmmLocal src), cast e])
                --TODO : Add the MachOp MO_V_Broadcast
           else emitAssign (CmmLocal dst) (CmmMachOp (MO_V_Broadcast len wid)
-                                                    [cast e, iLit])
+                                                    [CmmReg (CmmLocal src), cast e])
         emitAssign (CmmLocal res) (CmmReg (CmmLocal dst))
 
     cast :: CmmExpr -> CmmExpr

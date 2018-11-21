@@ -672,6 +672,7 @@ pprInstr (OR  format src dst) = pprFormatOpOp (sLit "or")  format src dst
 pprInstr (XOR FF32 src dst) = pprOpOp (sLit "xorps") FF32 src dst
 pprInstr (XOR FF64 src dst) = pprOpOp (sLit "xorpd") FF64 src dst
 pprInstr (XOR format src dst) = pprFormatOpOp (sLit "xor")  format src dst
+pprInstr (PXOR format src dst) = pprOpOp (sLit "pxor") format src dst
 
 pprInstr (POPCNT format src dst) = pprOpOp (sLit "popcnt") format src (OpReg dst)
 pprInstr (BSF format src dst)    = pprOpOp (sLit "bsf")    format src (OpReg dst)
@@ -1490,6 +1491,7 @@ pprShiftRight name format off reg
         pprOperand format off,
         comma,
         pprReg format reg
+        ]
 
 pprMov :: LitString -> Format -> Operand -> Operand -> SDoc
 pprMov name format from to
